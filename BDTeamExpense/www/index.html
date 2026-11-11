@@ -365,7 +365,7 @@ function vMain(){
 function vHome(){
   var d=S.data, b=myBal(), rate=d.settings.pkrRate, pend=pendingList();
   var h='<div class="hero"><div class="lab">'+(b.final>0.5?'You get back':(b.final<-0.5?'You owe':'You are settled'))+'</div>'+
-    '<div class="big num">'+money(Math.abs(b.final))+'</div><span class="pill num">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+'</span>'+
+    '<div class="big num">'+money(Math.abs(b.final))+'</div>'+(isAdmin()?'<button class="pill num" data-act="settings" style="color:#fff">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+' · rate '+rate+'</button>':'')+''+
     '<div class="grid"><div><small>You paid</small><b class="num">'+money(b.paid)+'</b></div><div><small>Your share</small><b class="num">'+money(b.owed)+'</b></div><div><small>Group total</small><b class="num">'+money(d.totals.spend)+'</b></div></div></div>';
   var qn=myQueue().length;
   if(qn) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+qn+(qn>1?' entries':' entry')+' saved on this phone, waiting to be sent</span>'+icon('chev',18)+'</button>';
@@ -452,7 +452,7 @@ function vRequests(){
 }
 function vMore(){
   var rows=[['statement','My statement','Every entry that changes your balance'],['stats','Statistics','Monthly spending and who paid'],['changePin','Change PIN','']];
-  if(isAdmin()) rows=rows.concat([['users','Members & PINs','Reset a PIN, switch accounts on or off'],['settings','Settings','PKR rate, e-mail alerts']]);
+  if(isAdmin()) rows=rows.concat([['users','Members & PINs','Reset a PIN, switch accounts on or off'],['settings','Settings','BDT to PKR rate (only you), e-mail alerts']]);
   rows.push(['about','About','']);
   return '<div class="card" style="display:flex;gap:12px;align-items:center">'+av(S.me.name)+'<div style="flex:1"><b style="font-size:17px">'+esc(S.me.name)+'</b><div class="note">'+(isAdmin()?'Admin — you approve all entries':'Member — '+esc(S.data.admin)+' approves your entries')+'</div></div></div>'+
     '<div class="card" style="padding:4px 14px">'+rows.map(function(r){ return '<button class="li" data-act="'+r[0]+'" data-name="'+esc(S.me.name)+'"><div class="mid"><div class="t">'+r[1]+'</div>'+(r[2]?'<div class="s">'+r[2]+'</div>':'')+'</div><span class="mute">'+icon('chev',18)+'</span></button>'; }).join('')+'</div>'+
@@ -533,8 +533,8 @@ function statementData(name){
 function showStatement(name){
   var b=myBal(name), rows=statementData(name), me=name===S.me.name;
   var h='<div class="picks">'+S.data.members.map(function(m){ return '<button class="pick'+(m===name?' on':'')+'" data-act="statement" data-name="'+esc(m)+'">'+esc(m)+'</button>'; }).join('')+'</div>'+
-    '<div class="card"><div class="kv"><span>Paid for the group</span><b class="num">'+money(b.paid)+'</b></div><div class="kv"><span>Own share of expenses</span><b class="num">'+money(b.owed)+'</b></div><div class="kv"><span>Money given to others</span><b class="num">'+money(b.given)+'</b></div><div class="kv"><span>Money received</span><b class="num">'+money(b.received)+'</b></div><div class="kv"><span>Balance</span><b class="num '+balCls(b.final)+'">'+esc(balText(b.final))+'</b></div><div class="kv"><span>In PKR</span><b class="num">'+Math.round(b.final*S.data.settings.pkrRate).toLocaleString('en-US')+'</b></div></div>'+
-    '<button class="btn ghost" data-act="shareStatement" data-name="'+esc(name)+'">Share summary</button>'+
+    '<div class="card"><div class="kv"><span>Paid for the group</span><b class="num">'+money(b.paid)+'</b></div><div class="kv"><span>Own share of expenses</span><b class="num">'+money(b.owed)+'</b></div><div class="kv"><span>Money given to others</span><b class="num">'+money(b.given)+'</b></div><div class="kv"><span>Money received</span><b class="num">'+money(b.received)+'</b></div><div class="kv"><span>Balance</span><b class="num '+balCls(b.final)+'">'+esc(balText(b.final))+'</b></div>'+(isAdmin()?'<div class="kv"><span>In PKR (only you see this)</span><b class="num">'+Math.round(b.final*S.data.settings.pkrRate).toLocaleString('en-US')+'</b></div>':'')+'</div>'+
+    '<button class="btn ghost" data-act="shareStatement" data-name="'+esc(name)+'">Share summary</button>'+(isAdmin()?'<label class="note" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="sharePkr" style="width:18px;height:18px"> Include the PKR amount when sharing</label>':'')+
     '<div class="card" style="padding:4px 14px">'+(rows.length?rows.slice(0,400).map(function(r){ return '<div class="li"><div class="mid"><div class="t">'+esc(r.t)+'</div><div class="s">'+esc(fdate(r.date,r.label))+' · '+esc(me?r.s:r.s.replace(/^You paid/,'Paid'))+'</div></div><div class="r"><b class="num '+balCls(r.eff)+'">'+(r.eff>0?'+':'')+money(r.eff)+'</b></div></div>'; }).join(''):'<div class="empty">Nothing yet.</div>')+'</div>';
   openSheet(me?'My statement':name+'’s statement', h);
 }
@@ -648,7 +648,7 @@ var A = {
   retryQueued: function(d,btn){ btn.disabled=true; saveOutbox(outbox().map(function(x){ if(x.cid===d.id) delete x.error; return x; })); refresh(); },
   statement: function(d){ showStatement(d.name||S.me.name); },
   shareStatement: function(d){
-    var b=myBal(d.name), lines=['BD Team Expense — '+d.name, 'Paid for group: '+money(b.paid), 'Own share: '+money(b.owed), 'Given: '+money(b.given)+' | Received: '+money(b.received), 'Balance: '+balText(b.final)+' (PKR '+Math.round(b.final*S.data.settings.pkrRate).toLocaleString('en-US')+')'];
+    var b=myBal(d.name), lines=['BD Team Expense — '+d.name, 'Paid for group: '+money(b.paid), 'Own share: '+money(b.owed), 'Given: '+money(b.given)+' | Received: '+money(b.received), 'Balance: '+balText(b.final)+(isAdmin()&&$('#sharePkr')&&$('#sharePkr').checked?' (PKR '+Math.round(b.final*S.data.settings.pkrRate).toLocaleString('en-US')+')':'')];
     var st=S.data.settle.filter(function(s){ return s.from===d.name||s.to===d.name; });
     if(st.length) lines.push('', 'To settle:'); st.forEach(function(s){ lines.push(s.from+' pays '+s.to+' '+money(s.amount)); });
     nativeShare(lines.join('\n'));
@@ -670,7 +670,7 @@ var A = {
   shareServer: function(){ nativeShare('BD Team Expense server link (paste it in the app on first start):\n'+S.api); },
   settings: function(){
     var s=S.data.settings;
-    openSheet('Settings','<label class="f">1 '+CUR+' = how many PKR?<input class="in num" id="rate" type="number" inputmode="decimal" step="any" value="'+s.pkrRate+'"></label>'+
+    openSheet('Settings','<p class="note">The PKR rate and all PKR amounts are visible to you only. Other members see balances in '+CUR+' only.</p><label class="f">1 '+CUR+' = how many PKR?<input class="in num" id="rate" type="number" inputmode="decimal" step="any" value="'+s.pkrRate+'"></label>'+
       '<label class="f">E-mail me when someone sends a request<select class="in" id="mail"><option value="1"'+(s.emailNotify?' selected':'')+'>Yes</option><option value="0"'+(s.emailNotify?'':' selected')+'>No</option></select></label><div id="formErr"></div><button class="btn" data-act="saveSettings">Save</button>');
   },
   saveSettings: function(d,btn){ var rate=Number($('#rate').value); if(!(rate>0)){ formErr('Enter a valid rate.'); return; } run(btn, call('setSettings',{pkrRate:rate,emailNotify:$('#mail').value==='1'}), 'Saved'); },
