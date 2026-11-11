@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0B5D4B">
+<title>BD Team Expense</title>
+<style>
+:root{
+  --bg:#F2F5F3; --card:#FFFFFF; --ink:#12201B; --mute:#62736C; --line:#E1E8E4;
+  --brand:#0B5D4B; --brand2:#12805F; --brandInk:#FFFFFF; --soft:#E3F2EC;
+  --pos:#0E8A4F; --posBg:#E2F5EA; --neg:#C4322B; --negBg:#FBE7E5; --warn:#9A6200; --warnBg:#FFF1D2;
+  --shadow:0 1px 2px rgba(16,40,32,.06),0 6px 18px rgba(16,40,32,.06);
+  --top:env(safe-area-inset-top,0px); --bot:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0E1513; --card:#17211E; --ink:#E9F1ED; --mute:#93A69E; --line:#26332F;
+  --brand:#0F6E59; --brand2:#1B9A74; --soft:#17302A;
+  --pos:#4FD08C; --posBg:#143325; --neg:#FF8078; --negBg:#3A1B19; --warn:#F2C062; --warnBg:#3A2D10;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Noto Sans Bengali",sans-serif;overscroll-behavior:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+h1,h2,h3,p{margin:0}
+.num{font-variant-numeric:tabular-nums}
+#root{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto;position:relative}
+
+/* auth screens */
+.auth{flex:1;overflow:auto;padding:calc(var(--top) + 36px) 22px calc(var(--bot) + 24px);display:flex;flex-direction:column;gap:18px}
+.logo{width:64px;height:64px;border-radius:18px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:30px;font-weight:700;box-shadow:var(--shadow)}
+.auth h1{font-size:26px;letter-spacing:-.3px}
+.auth p.sub{color:var(--mute)}
+.people{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.person{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:600;font-size:14px}
+.person.on{border-color:var(--brand2);background:var(--soft)}
+.av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;flex:none}
+.av.sm{width:30px;height:30px;font-size:13px}
+
+/* fields */
+label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--mute)}
+.in{width:100%;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:12px 13px;font-size:16px;color:var(--ink);outline:none;font-weight:500;min-height:48px;appearance:none;-webkit-appearance:none}
+.in:focus{border-color:var(--brand2)}
+textarea.in{min-height:72px;resize:none}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{background:var(--brand);color:#fff;border-radius:13px;padding:13px 16px;font-weight:700;font-size:16px;min-height:50px;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn:active{opacity:.85}
+.btn[disabled]{opacity:.55}
+.btn.ghost{background:var(--soft);color:var(--brand2)}
+.btn.danger{background:var(--negBg);color:var(--neg)}
+.btn.sm{min-height:40px;padding:8px 12px;font-size:14px;border-radius:11px;width:auto}
+.link{color:var(--brand2);font-weight:600;padding:8px 0}
+.err{background:var(--negBg);color:var(--neg);border-radius:11px;padding:10px 12px;font-weight:600;font-size:14px}
+
+/* main shell */
+header.top{background:var(--brand);color:#fff;padding:calc(var(--top) + 12px) 16px 12px;display:flex;align-items:center;gap:10px;flex:none}
+header.top h2{font-size:19px;flex:1;letter-spacing:-.2px}
+header.top .ic{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(255,255,255,.14)}
+.spin svg{animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 14px 96px}
+nav.tabs{flex:none;background:var(--card);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:var(--bot)}
+nav.tabs button{padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--mute);position:relative}
+nav.tabs button.on{color:var(--brand2)}
+.badge{position:absolute;top:3px;left:50%;margin-left:6px;background:var(--neg);color:#fff;border-radius:10px;min-width:18px;height:18px;font-size:11px;display:grid;place-items:center;padding:0 5px;font-weight:700}
+@media (prefers-color-scheme:dark){.badge{color:#1b0b0a}}
+.fab{position:absolute;right:16px;bottom:calc(var(--bot) + 72px);width:58px;height:58px;border-radius:19px;background:var(--brand2);color:#fff;display:grid;place-items:center;box-shadow:0 8px 20px rgba(11,93,75,.4);z-index:5}
+
+.card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+.card h3{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--mute);margin-bottom:8px;font-weight:700}
+.hero{background:linear-gradient(140deg,var(--brand),var(--brand2));color:#fff;border-radius:20px;padding:18px;margin-bottom:12px;box-shadow:var(--shadow)}
+.hero .lab{opacity:.85;font-size:13px;font-weight:600}
+.hero .big{font-size:36px;font-weight:800;letter-spacing:-1px;margin:2px 0}
+.hero .pill{display:inline-block;background:rgba(255,255,255,.18);border-radius:20px;padding:4px 11px;font-size:13px;font-weight:600}
+.hero .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.hero .grid div{background:rgba(255,255,255,.12);border-radius:12px;padding:8px 10px}
+.hero .grid small{display:block;opacity:.8;font-size:11px;font-weight:600}
+.hero .grid b{font-size:15px}
+.banner{display:flex;align-items:center;gap:10px;background:var(--warnBg);color:var(--warn);border-radius:14px;padding:12px 14px;margin-bottom:12px;font-weight:700;width:100%;text-align:left}
+.banner span{flex:1}
+.li{display:flex;align-items:center;gap:11px;padding:10px 0;border-top:1px solid var(--line);width:100%;text-align:left}
+.li:first-of-type{border-top:0}
+.li .mid{flex:1;min-width:0}
+.li .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .s{color:var(--mute);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .r{text-align:right;flex:none}
+.li .r b{display:block}
+.li .r small{color:var(--mute);font-size:12px}
+.pos{color:var(--pos)} .neg{color:var(--neg)} .mute{color:var(--mute)}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700;background:var(--soft);color:var(--brand2)}
+.chip.pending{background:var(--warnBg);color:var(--warn)}
+.chip.approved{background:var(--posBg);color:var(--pos)}
+.chip.rejected,.chip.cancelled{background:var(--negBg);color:var(--neg)}
+.seg{display:flex;background:var(--card);border-radius:12px;padding:4px;margin-bottom:12px;box-shadow:var(--shadow)}
+.seg button{flex:1;padding:8px 4px;border-radius:9px;font-weight:700;font-size:13px;color:var(--mute)}
+.seg button.on{background:var(--brand);color:#fff}
+.month{font-size:13px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.5px;margin:14px 4px 6px;display:flex;justify-content:space-between}
+.empty{text-align:center;color:var(--mute);padding:36px 16px}
+.picks{display:flex;flex-wrap:wrap;gap:8px}
+.pick{border:1.5px solid var(--line);background:var(--card);border-radius:22px;padding:8px 13px;font-weight:600;font-size:14px;color:var(--mute)}
+.pick.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.bar{height:8px;border-radius:6px;background:var(--soft);overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:var(--brand2);border-radius:6px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line)}
+.kv:first-child{border-top:0}
+.kv span{color:var(--mute)}
+.kv b{text-align:right}
+.note{font-size:13px;color:var(--mute)}
+.warnbox{background:var(--warnBg);color:var(--warn);border-radius:11px;padding:9px 12px;font-size:13px;font-weight:600;margin-top:8px}
+.acts{display:flex;gap:8px;margin-top:12px}
+.acts .btn{flex:1}
+
+/* bottom sheet */
+#sheet{position:absolute;inset:0;z-index:20;display:none}
+#sheet.on{display:block}
+#sheet .dim{position:absolute;inset:0;background:rgba(6,16,13,.5)}
+#sheet .panel{position:absolute;left:0;right:0;bottom:0;max-height:92%;background:var(--bg);border-radius:22px 22px 0 0;display:flex;flex-direction:column;animation:up .2s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:.4}}
+#sheet .hd{display:flex;align-items:center;padding:16px 16px 8px;flex:none}
+#sheet .hd h2{flex:1;font-size:19px}
+#sheet .hd button{width:36px;height:36px;border-radius:50%;background:var(--card);display:grid;place-items:center;color:var(--mute)}
+#sheet .bd{overflow-y:auto;padding:8px 16px calc(var(--bot) + 20px);display:flex;flex-direction:column;gap:13px}
+#toast{position:absolute;left:16px;right:16px;bottom:calc(var(--bot) + 84px);z-index:40;display:none;background:#12201B;color:#fff;border-radius:13px;padding:12px 15px;font-weight:600;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+#toast.on{display:block}
+#toast.bad{background:#B3261E}
+.pinbox{font-size:30px;font-weight:800;letter-spacing:6px;text-align:center;background:var(--card);border-radius:14px;padding:16px;user-select:all;-webkit-user-select:all}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+'use strict';
+
+/* ---------- small helpers ---------- */
+var $ = function(s, el){ return (el||document).querySelector(s); };
+var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
+var CUR = '৳';
+var money = function(n){ n=Math.round(Number(n)||0); return (n<0?'-':'')+CUR+Math.abs(n).toLocaleString('en-US'); };
+var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var today = function(){ var d=new Date(); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); };
+var fdate = function(iso,label){ if(label) return label; if(!iso) return '—'; var p=iso.split('-'); var y=Number(p[0]); return Number(p[2])+' '+MON[Number(p[1])-1]+(y!==new Date().getFullYear()?' '+y:''); };
+var fmonth = function(key){ if(!key) return 'No date'; var p=key.split('-'); return MON[Number(p[1])-1]+' '+p[0]; };
+var ftime = function(st){ if(!st) return ''; var d=st.substring(0,10), t=st.substring(11,16); return fdate(d)+(t?', '+t:''); };
+var COLORS = ['#0B7A5E','#C2571A','#3558C9','#A0338F','#B8860B','#1E8FA3','#7A5AC8','#C0392B'];
+var colorOf = function(name){ var i=(S.data&&S.data.members||S.members||[]).indexOf(name); if(i<0){ i=0; for(var k=0;k<name.length;k++) i+=name.charCodeAt(k); } return COLORS[i%COLORS.length]; };
+var av = function(name,sm){ return '<span class="av'+(sm?' sm':'')+'" style="background:'+colorOf(name)+'">'+esc((name||'?').charAt(0).toUpperCase())+'</span>'; };
+var store = {
+  get:function(k){ try{ return localStorage.getItem('bte_'+k); }catch(e){ return null; } },
+  set:function(k,v){ try{ if(v==null) localStorage.removeItem('bte_'+k); else localStorage.setItem('bte_'+k,v); }catch(e){} },
+  json:function(k){ try{ return JSON.parse(this.get(k)||'null'); }catch(e){ return null; } }
+};
+var uid = function(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,10); };
+var IC = {
+  home:'<path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  list:'<path d="M4 6h16M4 12h16M4 18h10"/>',
+  swap:'<path d="M7 7h13l-3-3M17 17H4l3 3"/>',
+  inbox:'<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-8h11L20 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/>',
+  more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  sync:'<path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/>',
+  chev:'<path d="m9 6 6 6-6 6"/>'
+};
+var icon = function(n,sz){ sz=sz||22; return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+IC[n]+'</svg>'; };
+
+/* ---------- state ---------- */
+var S = { view:'boot', api:'', token:'', me:null, data:null, tab:'home', members:[], pick:'', err:'', busy:false,
+          q:'', who:'all', reqSeg:'pending', offline:false };
+var GAS = !!(window.google && google.script && google.script.run);
+
+/* ---------- transport ---------- */
+var waiting = {}, seq = 0;
+window.__bridgeDone = function(id, ok, text){ var w=waiting[id]; if(!w) return; delete waiting[id]; if(ok) w.res(text); else w.rej(new Error(text||'Network error')); };
+function send(url, body){
+  if (GAS) return new Promise(function(res,rej){ google.script.run.withSuccessHandler(res).withFailureHandler(function(e){ rej(new Error(e&&e.message||'Server error')); }).apiCall(body); });
+  if (window.AndroidBridge && AndroidBridge.post) return new Promise(function(res,rej){ var id='r'+(++seq); waiting[id]={res:res,rej:rej}; AndroidBridge.post(id,url,body); });
+  if (window.webkit && webkit.messageHandlers && webkit.messageHandlers.http) return webkit.messageHandlers.http.postMessage({url:url,body:body});
+  return fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:body,redirect:'follow'}).then(function(r){ return r.text(); });
+}
+function call(action, payload, url){
+  var body = JSON.stringify(Object.assign({action:action, token:S.token}, payload||{}));
+  var timeout = new Promise(function(_,rej){ setTimeout(function(){ rej(new Error('NET')); }, 45000); });
+  return Promise.race([send(url||S.api, body), timeout]).then(function(text){
+    var r; try{ r=JSON.parse(text); }catch(e){ throw new Error('The server link did not answer correctly. Check the link with the admin.'); }
+    if(!r.ok){ if(r.code==='AUTH'){ signOut(r.error); } var er=new Error(r.error||'Something went wrong'); er.code=r.code; throw er; }
+    return r;
+  }, function(e){
+    if(e && e.code) throw e;
+    var er=new Error(e && e.message && e.message!=='NET' && !/fetch|network|load/i.test(e.message) ? e.message : 'No internet connection. Try again.'); er.net=true; throw er;
+  });
+}
+function nativeShare(text){
+  try{
+    if(window.AndroidBridge && AndroidBridge.share){ AndroidBridge.share(text); return; }
+    if(window.webkit && webkit.messageHandlers && webkit.messageHandlers.share){ webkit.messageHandlers.share.postMessage(text); return; }
+    if(navigator.share){ navigator.share({text:text}); return; }
+    if(navigator.clipboard){ navigator.clipboard.writeText(text).then(function(){ toast('Copied'); }); return; }
+  }catch(e){}
+  toast('Could not share on this device', true);
+}
+
+/* ---------- toast / sheet ---------- */
+var toastT;
+function toast(msg, bad){ var t=$('#toast'); if(!t) return; t.textContent=msg; t.className='on'+(bad?' bad':''); clearTimeout(toastT); toastT=setTimeout(function(){ t.className=''; }, bad?4200:2400); }
+function openSheet(title, html){ var s=$('#sheet'); if(!s) return; s.innerHTML='<div class="dim" data-act="closeSheet"></div><div class="panel"><div class="hd"><h2>'+esc(title)+'</h2><button data-act="closeSheet" aria-label="Close">'+icon('x',18)+'</button></div><div class="bd">'+html+'</div></div>'; s.className='on'; }
+function closeSheet(){ var s=$('#sheet'); if(s){ s.className=''; s.innerHTML=''; } }
+function sheetOpen(){ var s=$('#sheet'); return !!(s && s.className==='on'); }
+
+/* ---------- boot / auth ---------- */
+function boot(){
+  var cfg = window.APP_CONFIG || {};
+  try{ if(window.AndroidBridge && AndroidBridge.getConfig){ cfg = JSON.parse(AndroidBridge.getConfig()||'{}'); } }catch(e){}
+  window.APP_CONFIG = cfg;
+  S.api = GAS ? 'gas' : (cfg.apiUrl || store.get('api') || '');
+  S.fixedApi = GAS || !!cfg.apiUrl;
+  S.token = store.get('token') || '';
+  S.me = store.json('me');
+  S.data = store.json('data');
+  S.members = store.json('members') || [];
+  if(!S.api){ S.view='connect'; render(); return; }
+  if(S.token && S.me){ S.view = S.me.mustChange ? 'pin' : 'main'; render(); refresh(); return; }
+  S.view='login'; render(); loadMeta();
+}
+function loadMeta(){
+  call('meta').then(function(r){ S.members=r.members||[]; store.set('members',JSON.stringify(S.members)); S.err = r.ready?'':'The admin has not finished setup yet.'; if(S.view==='login') render(); },
+    function(e){ if(S.view==='login'){ S.err=e.message; render(); } });
+}
+function signOut(msg){
+  S.token=''; S.me=null; S.data=null; S.pick=''; S.tab='home';
+  store.set('token',null); store.set('me',null); store.set('data',null);
+  S.err = msg||''; S.view='login'; closeSheet(); render(); loadMeta();
+}
+function setSession(r){
+  if(r.token){ S.token=r.token; store.set('token',r.token); }
+  if(r.me){ S.me=r.me; store.set('me',JSON.stringify(r.me)); }
+}
+var refreshing=false;
+function refresh(silent){
+  if(!S.token || refreshing) return Promise.resolve();
+  refreshing=true; paintSync();
+  return call('sync').then(function(r){
+    refreshing=false; S.offline=false; S.data=r; S.me=r.me; CUR=(r.settings&&r.settings.currency)||CUR;
+    store.set('data',JSON.stringify(r)); store.set('me',JSON.stringify(r.me));
+    if(r.me.mustChange && S.view==='main'){ S.view='pin'; }
+    if(!sheetOpen() || S.view!=='main') render(); else paintSync();
+  }, function(e){
+    refreshing=false; paintSync();
+    if(e.net){ S.offline=true; if(!silent) toast(S.data?'Offline — showing saved data':e.message, true); }
+    else if(e.code!=='AUTH' && !silent) toast(e.message, true);
+  });
+}
+function paintSync(){ var b=$('#syncBtn'); if(b) b.className='ic'+(refreshing?' spin':''); }
+
+/* ---------- derived data ---------- */
+function myBal(name){ var b=(S.data.balances||[]).filter(function(x){ return x.name===(name||S.me.name); })[0]; return b||{paid:0,owed:0,net:0,given:0,received:0,final:0}; }
+function isAdmin(){ return S.me && S.me.role==='admin'; }
+function pendingList(){ return (S.data.requests||[]).filter(function(r){ return r.status==='pending'; }); }
+function unseenCount(){
+  if(isAdmin()) return pendingList().length;
+  var seen=store.json('seen')||[];
+  return (S.data.requests||[]).filter(function(r){ return (r.status==='approved'||r.status==='rejected') && seen.indexOf(r.id)<0; }).length;
+}
+function markSeen(){ if(isAdmin()||!S.data) return; store.set('seen', JSON.stringify((S.data.requests||[]).filter(function(r){ return r.status!=='pending'; }).map(function(r){ return r.id; }).slice(0,300))); }
+function balText(v){ return v>0.5?'gets back '+money(v):(v<-0.5?'owes '+money(-v):'settled'); }
+function balCls(v){ return v>0.5?'pos':(v<-0.5?'neg':'mute'); }
+
+/* ---------- views ---------- */
+function render(){
+  var root=$('#root'), html='';
+  if(S.view==='connect') html=vConnect();
+  else if(S.view==='login') html=vLogin();
+  else if(S.view==='pin') html=vForcePin();
+  else if(S.view==='main' && !S.data) html='<div class="auth"><div class="logo">'+CUR+'</div><h1>Loading…</h1><p class="sub">Getting the latest from the sheet.</p></div>';
+  else if(S.view==='main') html=vMain();
+  var keep = $('main') ? $('main').scrollTop : 0, sameTab = root.getAttribute('data-tab')===S.view+S.tab;
+  root.innerHTML = html + '<div id="sheet"></div><div id="toast"></div>';
+  root.setAttribute('data-tab', S.view+S.tab);
+  if(sameTab && $('main')) $('main').scrollTop=keep;
+}
+function vConnect(){
+  return '<div class="auth"><div class="logo">'+CUR+'</div><div><h1>BD Team Expense</h1><p class="sub">Paste the server link you got from the admin to connect this phone.</p></div>'+
+    (S.err?'<div class="err">'+esc(S.err)+'</div>':'')+
+    '<label class="f">Server link<textarea class="in" id="apiUrl" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" autocorrect="off" spellcheck="false"></textarea></label>'+
+    '<button class="btn" data-act="connect">Connect</button></div>';
+}
+function vLogin(){
+  var ppl=S.members.map(function(m){ return '<button class="person'+(S.pick===m?' on':'')+'" data-act="pick" data-name="'+esc(m)+'">'+av(m)+'<span>'+esc(m)+'</span></button>'; }).join('');
+  return '<div class="auth"><div class="logo">'+CUR+'</div><div><h1>BD Team Expense</h1><p class="sub">Who are you?</p></div>'+
+    (S.err?'<div class="err">'+esc(S.err)+'</div>':'')+
+    (ppl?'<div class="people">'+ppl+'</div>':'<p class="sub">Loading members…</p>')+
+    (S.pick?'<label class="f">PIN for '+esc(S.pick)+'<input class="in" id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="32" placeholder="••••••"></label><button class="btn" data-act="login">Sign in</button>':'')+
+    '<p class="note">Forgot your PIN? Ask the admin to reset it.</p>'+
+    (S.fixedApi?'':'<button class="link" data-act="changeServer">Change server link</button>')+'</div>';
+}
+function vForcePin(){
+  return '<div class="auth"><div class="logo">'+CUR+'</div><div><h1>Choose your own PIN</h1><p class="sub">Hi '+esc(S.me.name)+'. Replace the starting PIN with one only you know.</p></div>'+
+    (S.err?'<div class="err">'+esc(S.err)+'</div>':'')+pinFields()+
+    '<button class="btn" data-act="savePin">Save PIN</button><button class="link" data-act="signOut">Sign out</button></div>';
+}
+function pinFields(){
+  return '<label class="f">Current PIN<input class="in" id="oldPin" type="password" inputmode="numeric" autocomplete="off" maxlength="32"></label>'+
+    '<label class="f">New PIN (at least 4 digits)<input class="in" id="newPin" type="password" inputmode="numeric" autocomplete="off" maxlength="32"></label>'+
+    '<label class="f">New PIN again<input class="in" id="newPin2" type="password" inputmode="numeric" autocomplete="off" maxlength="32"></label>';
+}
+var TABS=[['home','Home','home'],['expenses','Expenses','list'],['payments','Payments','swap'],['requests','Requests','inbox'],['more','More','more']];
+function vMain(){
+  var title={home:'Hi, '+S.me.name,expenses:'Expenses',payments:'Payments',requests:isAdmin()?'Approvals':'My requests',more:'More'}[S.tab];
+  var body={home:vHome,expenses:vExpenses,payments:vPayments,requests:vRequests,more:vMore}[S.tab]();
+  var n=unseenCount();
+  return '<header class="top"><h2>'+esc(title)+'</h2><button id="syncBtn" class="ic'+(refreshing?' spin':'')+'" data-act="refresh" aria-label="Refresh">'+icon('sync',20)+'</button></header>'+
+    '<main>'+(S.offline?'<div class="banner"><span>Offline — showing saved data</span></div>':'')+body+'</main>'+
+    (S.tab==='more'||S.tab==='requests'?'':'<button class="fab" data-act="add" aria-label="Add">'+icon('plus',28)+'</button>')+
+    '<nav class="tabs">'+TABS.map(function(t){ return '<button class="'+(S.tab===t[0]?'on':'')+'" data-act="tab" data-tab="'+t[0]+'">'+icon(t[2])+(t[0]==='requests'&&n?'<span class="badge">'+n+'</span>':'')+'<span>'+(t[0]==='requests'&&isAdmin()?'Approvals':t[1])+'</span></button>'; }).join('')+'</nav>';
+}
+
+function vHome(){
+  var d=S.data, b=myBal(), rate=d.settings.pkrRate, pend=pendingList();
+  var h='<div class="hero"><div class="lab">'+(b.final>0.5?'You get back':(b.final<-0.5?'You owe':'You are settled'))+'</div>'+
+    '<div class="big num">'+money(Math.abs(b.final))+'</div><span class="pill num">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+'</span>'+
+    '<div class="grid"><div><small>You paid</small><b class="num">'+money(b.paid)+'</b></div><div><small>Your share</small><b class="num">'+money(b.owed)+'</b></div><div><small>Group total</small><b class="num">'+money(d.totals.spend)+'</b></div></div></div>';
+  if(isAdmin() && pend.length) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+pend.length+' request'+(pend.length>1?'s':'')+' waiting for your approval</span>'+icon('chev',18)+'</button>';
+  if(!isAdmin() && pend.length) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+pend.length+' of your request'+(pend.length>1?'s are':' is')+' waiting for '+esc(d.admin)+'</span>'+icon('chev',18)+'</button>';
+  h+='<div class="card"><h3>Everyone</h3>'+d.balances.map(function(x){
+    return '<button class="li" data-act="statement" data-name="'+esc(x.name)+'">'+av(x.name)+'<div class="mid"><div class="t">'+esc(x.name)+(x.name===S.me.name?' (you)':'')+'</div><div class="s num">paid '+money(x.paid)+' · share '+money(x.owed)+'</div></div><div class="r"><b class="num '+balCls(x.final)+'">'+money(x.final)+'</b><small>'+(x.final>0.5?'gets back':(x.final<-0.5?'owes':'settled'))+'</small></div></button>';
+  }).join('')+'</div>';
+  if(d.settle.length) h+='<div class="card"><h3>Simplest way to settle up</h3>'+d.settle.map(function(s){
+    var mine=s.from===S.me.name||s.to===S.me.name;
+    return '<div class="li">'+av(s.from,true)+'<div class="mid"><div class="t">'+esc(s.from)+' → '+esc(s.to)+'</div>'+(mine?'<div class="s">'+(s.from===S.me.name?'You pay':'You receive')+'</div>':'')+'</div><div class="r"><b class="num">'+money(s.amount)+'</b></div></div>';
+  }).join('')+'</div>';
+  var feed=(d.feed||[]).slice(0,6);
+  if(feed.length) h+='<div class="card"><h3>Recently approved</h3>'+feed.map(function(r){
+    return '<div class="li">'+av(r.by,true)+'<div class="mid"><div class="t">'+esc(r.type==='expense'?r.desc:r.from+' → '+r.to)+'</div><div class="s">'+esc(r.by)+' · '+esc(fdate(r.date))+(r.type==='expense'?' · split '+r.parts.length:' · payment')+'</div></div><div class="r"><b class="num">'+money(r.amount)+'</b></div></div>';
+  }).join('')+'</div>';
+  h+='<p class="note" style="text-align:center">Updated '+esc(ftime(d.time))+'</p>';
+  return h;
+}
+
+function expFiltered(){
+  var q=S.q.trim().toLowerCase(), me=S.me.name;
+  return S.data.expenses.filter(function(e){
+    if(S.who==='mine' && e.parts.indexOf(me)<0) return false;
+    if(S.who==='paid' && e.paidBy!==me) return false;
+    if(q && (e.desc+' '+e.paidBy+' '+e.notes+' '+e.amount).toLowerCase().indexOf(q)<0) return false;
+    return true;
+  });
+}
+function expListHtml(){
+  var list=expFiltered().slice().reverse(), me=S.me.name;
+  if(!list.length) return '<div class="empty">No expenses match.</div>';
+  var groups={}, order=[];
+  list.forEach(function(e){ var k=(e.date||'').substring(0,7); if(!groups[k]){ groups[k]=[]; order.push(k); } groups[k].push(e); });
+  order.sort().reverse();
+  return order.map(function(k){
+    var sum=groups[k].reduce(function(a,e){ return a+e.amount; },0);
+    return '<div class="month"><span>'+fmonth(k)+'</span><span class="num">'+money(sum)+'</span></div><div class="card" style="padding:4px 14px">'+groups[k].map(function(e){
+      var inIt=e.parts.indexOf(me)>=0;
+      return '<button class="li" data-act="expense" data-row="'+e.row+'">'+av(e.paidBy,true)+'<div class="mid"><div class="t">'+esc(e.desc)+'</div><div class="s">'+esc(fdate(e.date,e.label))+' · '+esc(e.paidBy)+' paid · '+(e.parts.length===S.data.members.length?'everyone':e.parts.length+' people')+'</div></div><div class="r"><b class="num">'+money(e.amount)+'</b><small class="num">'+(inIt?'you '+money(e.per):'not you')+'</small></div></button>';
+    }).join('')+'</div>';
+  }).join('');
+}
+function vExpenses(){
+  return '<input class="in" id="q" placeholder="Search expenses" value="'+esc(S.q)+'" style="margin-bottom:10px">'+
+    '<div class="seg">'+[['all','All'],['mine','I\'m in'],['paid','I paid']].map(function(x){ return '<button class="'+(S.who===x[0]?'on':'')+'" data-act="who" data-who="'+x[0]+'">'+x[1]+'</button>'; }).join('')+'</div>'+
+    '<div id="explist">'+expListHtml()+'</div>';
+}
+function vPayments(){
+  var me=S.me.name, list=S.data.transfers.slice().reverse();
+  if(S.who==='mine') list=list.filter(function(t){ return t.from===me||t.to===me; });
+  var h='<div class="seg">'+[['all','All'],['mine','Mine']].map(function(x){ return '<button class="'+((S.who==='mine'?'mine':'all')===x[0]?'on':'')+'" data-act="who" data-who="'+x[0]+'">'+x[1]+'</button>'; }).join('')+'</div>';
+  if(!list.length) return h+'<div class="empty">No payments yet.</div>';
+  return h+'<div class="card" style="padding:4px 14px">'+list.map(function(t){
+    return '<button class="li" data-act="payment" data-row="'+t.row+'">'+av(t.from,true)+'<div class="mid"><div class="t">'+esc(t.from)+' → '+esc(t.to)+'</div><div class="s">'+esc(fdate(t.date,t.label))+(t.notes?' · '+esc(t.notes):'')+'</div></div><div class="r"><b class="num">'+money(t.amount)+'</b></div></button>';
+  }).join('')+'</div>';
+}
+function reqCard(r){
+  var admin=isAdmin(), title=r.type==='expense'?r.desc:r.from+' → '+r.to;
+  var h='<div class="card"><div style="display:flex;gap:10px;align-items:flex-start">'+av(r.by)+'<div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:16px">'+esc(title)+'</b><b class="num" style="font-size:16px">'+money(r.amount)+'</b></div>'+
+    '<div class="note">'+(r.type==='expense'?'Expense':'Payment')+' · '+esc(fdate(r.date))+' · sent by '+esc(r.by)+'</div></div></div>'+
+    '<div style="margin-top:10px">'+
+    (r.type==='expense'?'<div class="kv"><span>Paid by</span><b>'+esc(r.from)+'</b></div><div class="kv"><span>Split with ('+r.parts.length+')</span><b>'+esc(r.parts.join(', '))+'</b></div><div class="kv"><span>Each pays</span><b class="num">'+money(r.parts.length?r.amount/r.parts.length:0)+'</b></div>'
+      :'<div class="kv"><span>Given by</span><b>'+esc(r.from)+'</b></div><div class="kv"><span>Received by</span><b>'+esc(r.to)+'</b></div>')+
+    (r.notes?'<div class="kv"><span>Notes</span><b>'+esc(r.notes)+'</b></div>':'')+
+    '<div class="kv"><span>Status</span><b><span class="chip '+esc(r.status)+'">'+esc(r.status)+'</span></b></div>'+
+    (r.decidedBy&&r.status!=='pending'?'<div class="kv"><span>'+(r.status==='cancelled'?'Cancelled':'Decided')+'</span><b>'+esc(r.decidedBy)+' · '+esc(ftime(r.decidedAt))+'</b></div>':'')+
+    (r.decisionNote?'<div class="kv"><span>Reason</span><b>'+esc(r.decisionNote)+'</b></div>':'')+'</div>'+
+    (r.dup?'<div class="warnbox">Looks like a duplicate: the sheet already has the same date, amount and description.</div>':'');
+  if(r.status==='pending'){
+    h+='<div class="acts">'+(admin?'<button class="btn sm danger" data-act="reject" data-id="'+r.id+'">Reject</button><button class="btn sm ghost" data-act="review" data-id="'+r.id+'">Edit</button><button class="btn sm" data-act="approve" data-id="'+r.id+'">Approve</button>'
+      :'<button class="btn sm danger" data-act="cancelReq" data-id="'+r.id+'">Cancel request</button>')+'</div>';
+  }
+  return h+'</div>';
+}
+function vRequests(){
+  var all=S.data.requests||[], pend=all.filter(function(r){ return r.status==='pending'; }), hist=all.filter(function(r){ return r.status!=='pending'; });
+  var h='<div class="seg"><button class="'+(S.reqSeg==='pending'?'on':'')+'" data-act="reqSeg" data-seg="pending">Waiting ('+pend.length+')</button><button class="'+(S.reqSeg==='history'?'on':'')+'" data-act="reqSeg" data-seg="history">History</button></div>';
+  var list=S.reqSeg==='pending'?pend:hist.slice(0,60);
+  if(!list.length) return h+'<div class="empty">'+(S.reqSeg==='pending'?(isAdmin()?'Nothing waiting. All caught up.':'Nothing waiting. Tap + on Home to add an expense.'):'No history yet.')+'</div>';
+  if(isAdmin() && S.reqSeg==='pending' && pend.length>1) h+='<button class="btn ghost" data-act="approveAll" style="margin-bottom:12px">Approve all '+pend.length+'</button>';
+  return h+list.map(reqCard).join('');
+}
+function vMore(){
+  var rows=[['statement','My statement','Every entry that changes your balance'],['stats','Statistics','Monthly spending and who paid'],['changePin','Change PIN','']];
+  if(isAdmin()) rows=rows.concat([['users','Members & PINs','Reset a PIN, switch accounts on or off'],['settings','Settings','PKR rate, e-mail alerts']]);
+  rows.push(['about','About','']);
+  return '<div class="card" style="display:flex;gap:12px;align-items:center">'+av(S.me.name)+'<div style="flex:1"><b style="font-size:17px">'+esc(S.me.name)+'</b><div class="note">'+(isAdmin()?'Admin — you approve all entries':'Member — '+esc(S.data.admin)+' approves your entries')+'</div></div></div>'+
+    '<div class="card" style="padding:4px 14px">'+rows.map(function(r){ return '<button class="li" data-act="'+r[0]+'" data-name="'+esc(S.me.name)+'"><div class="mid"><div class="t">'+r[1]+'</div>'+(r[2]?'<div class="s">'+r[2]+'</div>':'')+'</div><span class="mute">'+icon('chev',18)+'</span></button>'; }).join('')+'</div>'+
+    '<button class="btn danger" data-act="signOut">Sign out</button>';
+}
+
+/* ---------- forms ---------- */
+function memberOptions(sel){ return S.data.members.map(function(m){ return '<option'+(m===sel?' selected':'')+'>'+esc(m)+'</option>'; }).join(''); }
+function expenseForm(init, submitLabel, hidden){
+  var m=S.data.members, parts=init.parts||m;
+  var seen={}, sug=[]; S.data.expenses.slice().reverse().forEach(function(e){ var k=e.desc.trim().toLowerCase(); if(!seen[k]&&sug.length<25){ seen[k]=1; sug.push(e.desc.trim()); } });
+  return '<form id="expForm" autocomplete="off" style="display:flex;flex-direction:column;gap:13px">'+(hidden||'')+
+    '<label class="f">What was it for?<input class="in" name="desc" maxlength="80" list="sug" value="'+esc(init.desc||'')+'" placeholder="e.g. KFC, Mess, Rickshaw"><datalist id="sug">'+sug.map(function(s){ return '<option value="'+esc(s)+'">'; }).join('')+'</datalist></label>'+
+    '<div class="row2"><label class="f">Amount ('+CUR+')<input class="in num" name="amount" type="number" inputmode="decimal" step="any" min="0" value="'+(init.amount||'')+'" placeholder="0"></label>'+
+    '<label class="f">Date<input class="in" name="date" type="date" value="'+esc(init.date||today())+'"></label></div>'+
+    '<label class="f">Paid by<select class="in" name="paidBy">'+memberOptions(init.paidBy||S.me.name)+'</select></label>'+
+    '<div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--mute)"><div style="display:flex;justify-content:space-between"><span>Split between</span><button type="button" class="link" style="padding:0" data-act="allParts">Everyone</button></div>'+
+    '<div class="picks" id="parts">'+m.map(function(x){ return '<button type="button" class="pick'+(parts.indexOf(x)>=0?' on':'')+'" data-act="togglePart" data-name="'+esc(x)+'">'+esc(x)+'</button>'; }).join('')+'</div><div id="share" class="note"></div></div>'+
+    '<label class="f">Notes (optional)<input class="in" name="notes" maxlength="200" value="'+esc(init.notes||'')+'"></label>'+
+    '<div id="formErr"></div><button type="button" class="btn" data-act="submitExpense">'+esc(submitLabel)+'</button></form>';
+}
+function paymentForm(init, submitLabel, hidden){
+  var others=S.data.members.filter(function(x){ return x!==S.me.name; });
+  return '<form id="payForm" autocomplete="off" style="display:flex;flex-direction:column;gap:13px">'+(hidden||'')+
+    '<div class="row2"><label class="f">Given by<select class="in" name="from">'+memberOptions(init.from||S.me.name)+'</select></label>'+
+    '<label class="f">Received by<select class="in" name="to">'+memberOptions(init.to||(isAdmin()?others[0]:S.data.admin))+'</select></label></div>'+
+    '<div class="row2"><label class="f">Amount ('+CUR+')<input class="in num" name="amount" type="number" inputmode="decimal" step="any" min="0" value="'+(init.amount||'')+'" placeholder="0"></label>'+
+    '<label class="f">Date<input class="in" name="date" type="date" value="'+esc(init.date||today())+'"></label></div>'+
+    '<label class="f">Notes (optional)<input class="in" name="notes" maxlength="200" value="'+esc(init.notes||'')+'" placeholder="e.g. bKash, cash, bank"></label>'+
+    '<div id="formErr"></div><button type="button" class="btn" data-act="submitPayment">'+esc(submitLabel)+'</button></form>';
+}
+function readExpenseForm(){
+  var f=$('#expForm'); var parts=[].map.call(f.querySelectorAll('.pick.on'),function(b){ return b.dataset.name; });
+  return { desc:f.desc.value.trim(), amount:Number(f.amount.value), date:f.date.value, paidBy:f.paidBy.value, parts:parts, notes:f.notes.value.trim() };
+}
+function readPaymentForm(){ var f=$('#payForm'); return { from:f.from.value, to:f.to.value, amount:Number(f.amount.value), date:f.date.value, notes:f.notes.value.trim() }; }
+function updateShare(){
+  var f=$('#expForm'); if(!f) return; var n=f.querySelectorAll('.pick.on').length, a=Number(f.amount.value)||0;
+  $('#share').textContent = n ? (a>0 ? n+' people · '+money(a/n)+' each' : n+' people') : 'Choose at least one person';
+}
+function formErr(msg){ var e=$('#formErr'); if(e) e.innerHTML=msg?'<div class="err">'+esc(msg)+'</div>':''; else if(msg) toast(msg,true); }
+function modeOf(form){ var m=form.querySelector('[name=mode]'); return m?m.value:'new'; }
+function ctxOf(form){ var c=form.querySelector('[name=ctx]'); return c?JSON.parse(c.value):{}; }
+function hiddenCtx(mode, ctx){ return '<input type="hidden" name="mode" value="'+mode+'"><input type="hidden" name="ctx" value="'+esc(JSON.stringify(ctx))+'">'; }
+function run(btn, promise, okMsg){
+  if(btn){ btn.disabled=true; btn.dataset.txt=btn.textContent; btn.textContent='Please wait…'; }
+  return promise.then(function(r){ closeSheet(); if(okMsg) toast(typeof okMsg==='function'?okMsg(r):okMsg); return refresh(true).then(function(){ return r; }); },
+    function(e){ if(btn){ btn.disabled=false; btn.textContent=btn.dataset.txt; } if(sheetOpen()&&$('#formErr')) formErr(e.message); else toast(e.message,true); });
+}
+function validate(d, kind){
+  if(kind==='expense'){ if(!d.desc) return 'Enter what it was for.'; if(!d.parts.length) return 'Choose at least one person to split with.'; }
+  else if(d.from===d.to) return 'Giver and receiver must be different people.';
+  if(!(d.amount>0)) return 'Enter an amount more than zero.';
+  if(!d.date) return 'Pick a date.';
+  return '';
+}
+
+/* ---------- detail sheets ---------- */
+function showExpense(row){
+  var e=S.data.expenses.filter(function(x){ return x.row===row; })[0]; if(!e) return;
+  var h='<div class="card"><div class="kv"><span>Amount</span><b class="num" style="font-size:20px">'+money(e.amount)+'</b></div><div class="kv"><span>Date</span><b>'+esc(fdate(e.date,e.label))+'</b></div><div class="kv"><span>Paid by</span><b>'+esc(e.paidBy)+'</b></div><div class="kv"><span>Each pays</span><b class="num">'+money(e.per)+' × '+e.parts.length+'</b></div>'+(e.notes?'<div class="kv"><span>Notes</span><b>'+esc(e.notes)+'</b></div>':'')+'</div>'+
+    '<div class="card"><h3>Who shares it</h3>'+S.data.members.map(function(m){ var inn=e.parts.indexOf(m)>=0; return '<div class="li">'+av(m,true)+'<div class="mid"><div class="t'+(inn?'':' mute')+'">'+esc(m)+'</div></div><div class="r"><b class="num '+(inn?'':'mute')+'">'+(inn?money(e.per):'—')+'</b></div></div>'; }).join('')+'</div>';
+  if(isAdmin()) h+='<div class="acts"><button class="btn danger" data-act="delEntry" data-kind="expense" data-row="'+row+'">Delete</button><button class="btn ghost" data-act="editExpense" data-row="'+row+'">Edit</button></div>';
+  openSheet(e.desc, h);
+}
+function showPayment(row){
+  var t=S.data.transfers.filter(function(x){ return x.row===row; })[0]; if(!t) return;
+  var h='<div class="card"><div class="kv"><span>Amount</span><b class="num" style="font-size:20px">'+money(t.amount)+'</b></div><div class="kv"><span>Date</span><b>'+esc(fdate(t.date,t.label))+'</b></div><div class="kv"><span>Given by</span><b>'+esc(t.from)+'</b></div><div class="kv"><span>Received by</span><b>'+esc(t.to)+'</b></div>'+(t.notes?'<div class="kv"><span>Notes</span><b>'+esc(t.notes)+'</b></div>':'')+'</div>';
+  if(isAdmin()) h+='<div class="acts"><button class="btn danger" data-act="delEntry" data-kind="transfer" data-row="'+row+'">Delete</button><button class="btn ghost" data-act="editPayment" data-row="'+row+'">Edit</button></div>';
+  openSheet('Payment', h);
+}
+function statementData(name){
+  var rows=[];
+  S.data.expenses.forEach(function(e){ var eff=(e.paidBy===name?e.amount:0)-(e.parts.indexOf(name)>=0?e.per:0); if(e.paidBy===name||e.parts.indexOf(name)>=0) rows.push({date:e.date,label:e.label,t:e.desc,s:e.paidBy===name?'You paid '+money(e.amount):e.paidBy+' paid',eff:eff}); });
+  S.data.transfers.forEach(function(t){ if(t.from===name) rows.push({date:t.date,label:t.label,t:'Gave to '+t.to,s:t.notes||'Payment',eff:t.amount}); else if(t.to===name) rows.push({date:t.date,label:t.label,t:'Received from '+t.from,s:t.notes||'Payment',eff:-t.amount}); });
+  rows.sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); });
+  return rows;
+}
+function showStatement(name){
+  var b=myBal(name), rows=statementData(name), me=name===S.me.name;
+  var h='<div class="picks">'+S.data.members.map(function(m){ return '<button class="pick'+(m===name?' on':'')+'" data-act="statement" data-name="'+esc(m)+'">'+esc(m)+'</button>'; }).join('')+'</div>'+
+    '<div class="card"><div class="kv"><span>Paid for the group</span><b class="num">'+money(b.paid)+'</b></div><div class="kv"><span>Own share of expenses</span><b class="num">'+money(b.owed)+'</b></div><div class="kv"><span>Money given to others</span><b class="num">'+money(b.given)+'</b></div><div class="kv"><span>Money received</span><b class="num">'+money(b.received)+'</b></div><div class="kv"><span>Balance</span><b class="num '+balCls(b.final)+'">'+esc(balText(b.final))+'</b></div><div class="kv"><span>In PKR</span><b class="num">'+Math.round(b.final*S.data.settings.pkrRate).toLocaleString('en-US')+'</b></div></div>'+
+    '<button class="btn ghost" data-act="shareStatement" data-name="'+esc(name)+'">Share summary</button>'+
+    '<div class="card" style="padding:4px 14px">'+(rows.length?rows.slice(0,400).map(function(r){ return '<div class="li"><div class="mid"><div class="t">'+esc(r.t)+'</div><div class="s">'+esc(fdate(r.date,r.label))+' · '+esc(me?r.s:r.s.replace(/^You paid/,'Paid'))+'</div></div><div class="r"><b class="num '+balCls(r.eff)+'">'+(r.eff>0?'+':'')+money(r.eff)+'</b></div></div>'; }).join(''):'<div class="empty">Nothing yet.</div>')+'</div>';
+  openSheet(me?'My statement':name+'’s statement', h);
+}
+function showStats(){
+  var me=S.data.me.name, months={}, keys=[];
+  S.data.expenses.forEach(function(e){ var k=(e.date||'').substring(0,7); if(!months[k]){ months[k]={t:0,m:0,n:0}; keys.push(k); } months[k].t+=e.amount; months[k].n++; if(e.parts.indexOf(me)>=0) months[k].m+=e.per; });
+  keys.sort().reverse();
+  var max=Math.max.apply(null,keys.map(function(k){ return months[k].t; }).concat([1]));
+  var paidMax=Math.max.apply(null,S.data.balances.map(function(b){ return b.paid; }).concat([1]));
+  var top=S.data.expenses.slice().sort(function(a,b){ return b.amount-a.amount; }).slice(0,5);
+  var h='<div class="card"><div class="kv"><span>Group spending</span><b class="num">'+money(S.data.totals.spend)+'</b></div><div class="kv"><span>Expenses recorded</span><b class="num">'+S.data.expenses.length+'</b></div><div class="kv"><span>Payments between members</span><b class="num">'+money(S.data.totals.transfers)+'</b></div><div class="kv"><span>Still to be settled</span><b class="num">'+money(S.data.totals.outstanding)+'</b></div></div>'+
+    '<div class="card"><h3>By month</h3>'+keys.map(function(k){ var x=months[k]; return '<div style="padding:8px 0"><div style="display:flex;justify-content:space-between"><b>'+fmonth(k)+'</b><b class="num">'+money(x.t)+'</b></div><div class="bar"><i style="width:'+Math.max(2,Math.round(x.t/max*100))+'%"></i></div><div class="note num">'+x.n+' expenses · your share '+money(x.m)+'</div></div>'; }).join('')+'</div>'+
+    '<div class="card"><h3>Who paid</h3>'+S.data.balances.slice().sort(function(a,b){ return b.paid-a.paid; }).map(function(b){ return '<div style="padding:8px 0"><div style="display:flex;justify-content:space-between"><b>'+esc(b.name)+'</b><b class="num">'+money(b.paid)+'</b></div><div class="bar"><i style="width:'+Math.max(b.paid?2:0,Math.round(b.paid/paidMax*100))+'%"></i></div></div>'; }).join('')+'</div>'+
+    '<div class="card"><h3>Biggest expenses</h3>'+top.map(function(e){ return '<div class="li"><div class="mid"><div class="t">'+esc(e.desc)+'</div><div class="s">'+esc(fdate(e.date,e.label))+' · '+esc(e.paidBy)+'</div></div><div class="r"><b class="num">'+money(e.amount)+'</b></div></div>'; }).join('')+'</div>';
+  openSheet('Statistics', h);
+}
+function showUsers(){
+  openSheet('Members & PINs','<p class="note">Loading…</p>');
+  call('users').then(function(r){
+    openSheet('Members & PINs','<p class="note">Resetting gives a new starting PIN. The member must choose their own PIN at next sign-in.</p><div class="card" style="padding:4px 14px">'+r.users.map(function(u){
+      return '<div class="li">'+av(u.name,true)+'<div class="mid"><div class="t">'+esc(u.name)+'</div><div class="s">'+(u.role==='admin'?'Admin':(u.active?'Member':'Switched off'))+(u.mustChange?' · starting PIN not changed yet':'')+'</div></div>'+
+        '<div style="display:flex;gap:6px">'+(u.role==='admin'?'':'<button class="btn sm '+(u.active?'danger':'ghost')+'" data-act="toggleUser" data-name="'+esc(u.name)+'" data-active="'+(u.active?'0':'1')+'">'+(u.active?'Off':'On')+'</button>')+'<button class="btn sm ghost" data-act="resetPin" data-name="'+esc(u.name)+'">Reset PIN</button></div></div>';
+    }).join('')+'</div>'+(GAS?'':'<button class="btn ghost" data-act="shareServer">Share server link</button>'));
+  }, function(e){ closeSheet(); toast(e.message,true); });
+}
+function confirmSheet(title, text, yesLabel, act, data, danger, withNote){
+  var attrs=Object.keys(data||{}).map(function(k){ return ' data-'+k+'="'+esc(data[k])+'"'; }).join('');
+  openSheet(title,'<p>'+esc(text)+'</p>'+(withNote?'<label class="f">Reason (the member will see this)<input class="in" id="note" maxlength="200" placeholder="Optional"></label>':'')+'<div id="formErr"></div><div class="acts"><button class="btn ghost" data-act="closeSheet">Back</button><button class="btn'+(danger?' danger':'')+'" data-act="'+act+'"'+attrs+'>'+esc(yesLabel)+'</button></div>');
+}
+
+/* ---------- actions ---------- */
+var A = {
+  closeSheet: closeSheet,
+  refresh: function(){ refresh(); },
+  tab: function(d){ S.tab=d.tab; S.q=''; S.who='all'; closeSheet(); render(); if(S.tab==='requests') { markSeen(); } $('main').scrollTop=0; },
+  who: function(d){ S.who=d.who; render(); },
+  reqSeg: function(d){ S.reqSeg=d.seg; render(); },
+  connect: function(d,btn){
+    var url=$('#apiUrl').value.trim();
+    if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)){ S.err='That does not look like the server link. It starts with https://script.google.com/macros/s/ and ends with /exec'; render(); return; }
+    btn.disabled=true; btn.textContent='Connecting…';
+    call('meta',null,url).then(function(r){ S.api=url; store.set('api',url); S.members=r.members||[]; store.set('members',JSON.stringify(S.members)); S.err=r.ready?'':'The admin has not finished setup yet.'; S.view='login'; render(); },
+      function(e){ S.err=e.message; render(); });
+  },
+  changeServer: function(){ store.set('api',null); S.api=''; S.err=''; S.view='connect'; render(); },
+  pick: function(d){ S.pick=d.name; S.err=''; render(); var p=$('#pin'); if(p) p.focus(); },
+  login: function(d,btn){
+    var pin=$('#pin').value; if(!pin){ S.err='Enter your PIN.'; render(); return; }
+    btn.disabled=true; btn.textContent='Signing in…';
+    call('login',{name:S.pick,pin:pin}).then(function(r){ setSession(r); S.err=''; S.view=r.me.mustChange?'pin':'main'; S.tab='home'; render(); if(!r.me.mustChange) refresh(); },
+      function(e){ S.err=e.message; render(); });
+  },
+  signOut: function(){ signOut(''); },
+  savePin: function(d,btn){
+    var o=$('#oldPin').value, n=$('#newPin').value, n2=$('#newPin2').value, inSheet=sheetOpen();
+    var bad = !o?'Enter your current PIN.':(n.length<4?'New PIN needs at least 4 digits.':(n!==n2?'The two new PINs do not match.':''));
+    if(bad){ if(inSheet) formErr(bad); else { S.err=bad; render(); } return; }
+    btn.disabled=true;
+    call('changePin',{oldPin:o,newPin:n}).then(function(r){ setSession(r); S.err=''; closeSheet(); S.view='main'; render(); toast('PIN changed'); refresh(true); },
+      function(e){ btn.disabled=false; if(inSheet) formErr(e.message); else { S.err=e.message; render(); } });
+  },
+  changePin: function(){ openSheet('Change PIN', pinFields()+'<div id="formErr"></div><button class="btn" data-act="savePin">Save PIN</button>'); },
+  add: function(){
+    if(S.tab==='payments'){ A.addPayment(); return; }
+    openSheet('Add', '<button class="btn" data-act="addExpense">Group expense</button><button class="btn ghost" data-act="addPayment">Payment between two people</button><p class="note">'+(isAdmin()?'Your entries go straight to the sheet.':'Your entry is sent to '+esc(S.data.admin)+'. It appears for everyone after approval.')+'</p>');
+  },
+  addExpense: function(){ openSheet('New expense', expenseForm({}, isAdmin()?'Add to sheet':'Send for approval')); updateShare(); },
+  addPayment: function(){ openSheet('New payment', paymentForm({}, isAdmin()?'Add to sheet':'Send for approval')); },
+  togglePart: function(d,btn){ btn.classList.toggle('on'); updateShare(); },
+  allParts: function(){ [].forEach.call(document.querySelectorAll('#parts .pick'),function(b){ b.classList.add('on'); }); updateShare(); },
+  submitExpense: function(d,btn){
+    var f=$('#expForm'), data=readExpenseForm(), mode=modeOf(f), ctx=ctxOf(f), bad=validate(data,'expense');
+    if(bad){ formErr(bad); return; }
+    if(mode==='edit') run(btn, call('editEntry',{kind:'expense',row:ctx.row,expect:ctx.expect,data:data}), 'Saved');
+    else if(mode==='review') run(btn, call('decide',{id:ctx.id,approve:true,data:data}), 'Approved and added to the sheet');
+    else run(btn, call('submitExpense',{data:data,clientId:uid()}), function(r){ return r.status==='approved'?'Added to the sheet':'Sent to '+S.data.admin+' for approval'; });
+  },
+  submitPayment: function(d,btn){
+    var f=$('#payForm'), data=readPaymentForm(), mode=modeOf(f), ctx=ctxOf(f), bad=validate(data,'transfer');
+    if(bad){ formErr(bad); return; }
+    if(mode==='edit') run(btn, call('editEntry',{kind:'transfer',row:ctx.row,expect:ctx.expect,data:data}), 'Saved');
+    else if(mode==='review') run(btn, call('decide',{id:ctx.id,approve:true,data:data}), 'Approved and added to the sheet');
+    else run(btn, call('submitTransfer',{data:data,clientId:uid()}), function(r){ return r.status==='approved'?'Added to the sheet':'Sent to '+S.data.admin+' for approval'; });
+  },
+  expense: function(d){ showExpense(Number(d.row)); },
+  payment: function(d){ showPayment(Number(d.row)); },
+  editExpense: function(d){ var e=S.data.expenses.filter(function(x){ return x.row===Number(d.row); })[0]; openSheet('Edit expense', expenseForm(e,'Save changes',hiddenCtx('edit',{row:e.row,expect:{text:e.desc,amount:e.amount}}))); updateShare(); },
+  editPayment: function(d){ var t=S.data.transfers.filter(function(x){ return x.row===Number(d.row); })[0]; openSheet('Edit payment', paymentForm(t,'Save changes',hiddenCtx('edit',{row:t.row,expect:{text:t.from,amount:t.amount}}))); },
+  delEntry: function(d){ confirmSheet('Delete this entry?','It will be removed from the sheet for everyone. This cannot be undone from the app.','Delete','delEntryYes',{kind:d.kind,row:d.row},true); },
+  delEntryYes: function(d,btn){
+    var row=Number(d.row), e=(d.kind==='expense'?S.data.expenses:S.data.transfers).filter(function(x){ return x.row===row; })[0];
+    run(btn, call('deleteEntry',{kind:d.kind,row:row,expect:{text:d.kind==='expense'?e.desc:e.from,amount:e.amount}}), 'Deleted');
+  },
+  approve: function(d,btn){ run(btn, call('decide',{id:d.id,approve:true}), 'Approved and added to the sheet'); },
+  approveAll: function(d,btn){
+    var ids=pendingList().map(function(r){ return r.id; }).reverse(), done=0;
+    btn.disabled=true;
+    var next=function(){ if(!ids.length) return Promise.resolve(); btn.textContent='Approving '+(done+1)+'…'; return call('decide',{id:ids.shift(),approve:true}).then(function(){ done++; return next(); }); };
+    next().then(function(){ toast('Approved '+done); refresh(true); }, function(e){ toast(e.message,true); refresh(true); });
+  },
+  reject: function(d){ confirmSheet('Reject this request?','It will not be added to the sheet.','Reject','rejectYes',{id:d.id},true,true); },
+  rejectYes: function(d,btn){ run(btn, call('decide',{id:d.id,approve:false,note:$('#note').value.trim()}), 'Rejected'); },
+  review: function(d){
+    var r=S.data.requests.filter(function(x){ return x.id===d.id; })[0]; if(!r) return;
+    if(r.type==='expense'){ openSheet('Edit, then approve', expenseForm({desc:r.desc,amount:r.amount,date:r.date,paidBy:r.from,parts:r.parts,notes:r.notes},'Approve with these details',hiddenCtx('review',{id:r.id}))); updateShare(); }
+    else openSheet('Edit, then approve', paymentForm({from:r.from,to:r.to,amount:r.amount,date:r.date,notes:r.notes},'Approve with these details',hiddenCtx('review',{id:r.id})));
+  },
+  cancelReq: function(d){ confirmSheet('Cancel this request?','It will be withdrawn before '+S.data.admin+' decides.','Cancel request','cancelReqYes',{id:d.id},true); },
+  cancelReqYes: function(d,btn){ run(btn, call('cancelRequest',{id:d.id}), 'Request cancelled'); },
+  statement: function(d){ showStatement(d.name||S.me.name); },
+  shareStatement: function(d){
+    var b=myBal(d.name), lines=['BD Team Expense — '+d.name, 'Paid for group: '+money(b.paid), 'Own share: '+money(b.owed), 'Given: '+money(b.given)+' | Received: '+money(b.received), 'Balance: '+balText(b.final)+' (PKR '+Math.round(b.final*S.data.settings.pkrRate).toLocaleString('en-US')+')'];
+    var st=S.data.settle.filter(function(s){ return s.from===d.name||s.to===d.name; });
+    if(st.length) lines.push('', 'To settle:'); st.forEach(function(s){ lines.push(s.from+' pays '+s.to+' '+money(s.amount)); });
+    nativeShare(lines.join('\n'));
+  },
+  stats: showStats,
+  users: showUsers,
+  resetPin: function(d){ confirmSheet('Reset PIN for '+d.name+'?','Their current PIN stops working and they are signed out everywhere.','Reset PIN','resetPinYes',{name:d.name},true); },
+  resetPinYes: function(d,btn){
+    btn.disabled=true;
+    call('resetPin',{name:d.name}).then(function(r){
+      if(r.token) setSession({token:r.token});
+      var msg='BD Team Expense\nName: '+r.name+'\nStarting PIN: '+r.pin+(GAS||!S.api?'':'\nServer link: '+S.api);
+      openSheet('New PIN for '+r.name,'<div class="pinbox num">'+esc(r.pin)+'</div><p class="note">This is shown only once. Send it to '+esc(r.name)+' privately.</p><button class="btn" data-act="shareText" data-text="'+esc(msg)+'">Send to '+esc(r.name)+'</button><button class="btn ghost" data-act="users">Back to members</button>');
+      if(r.name===S.me.name) refresh(true);
+    }, function(e){ btn.disabled=false; formErr(e.message); });
+  },
+  toggleUser: function(d,btn){ btn.disabled=true; call('setActive',{name:d.name,active:d.active==='1'}).then(showUsers,function(e){ toast(e.message,true); showUsers(); }); },
+  shareText: function(d){ nativeShare(d.text); },
+  shareServer: function(){ nativeShare('BD Team Expense server link (paste it in the app on first start):\n'+S.api); },
+  settings: function(){
+    var s=S.data.settings;
+    openSheet('Settings','<label class="f">1 '+CUR+' = how many PKR?<input class="in num" id="rate" type="number" inputmode="decimal" step="any" value="'+s.pkrRate+'"></label>'+
+      '<label class="f">E-mail me when someone sends a request<select class="in" id="mail"><option value="1"'+(s.emailNotify?' selected':'')+'>Yes</option><option value="0"'+(s.emailNotify?'':' selected')+'>No</option></select></label><div id="formErr"></div><button class="btn" data-act="saveSettings">Save</button>');
+  },
+  saveSettings: function(d,btn){ var rate=Number($('#rate').value); if(!(rate>0)){ formErr('Enter a valid rate.'); return; } run(btn, call('setSettings',{pkrRate:rate,emailNotify:$('#mail').value==='1'}), 'Saved'); },
+  about: function(){ openSheet('About','<div class="card"><div class="kv"><span>App</span><b>BD Team Expense</b></div><div class="kv"><span>Version</span><b>'+esc((window.APP_CONFIG&&APP_CONFIG.version)||'1.0')+'</b></div><div class="kv"><span>Signed in as</span><b>'+esc(S.me.name)+'</b></div><div class="kv"><span>Last update</span><b>'+esc(ftime(S.data.time))+'</b></div></div><p class="note">All data lives in the group’s Google Sheet. Members’ entries are added to the sheet only after the admin approves them.</p>'+(S.fixedApi?'':'<button class="btn ghost" data-act="changeServerConfirm">Change server link</button>')); },
+  changeServerConfirm: function(){ signOut(''); A.changeServer(); }
+};
+
+document.addEventListener('click', function(ev){
+  var el=ev.target.closest('[data-act]'); if(!el || el.disabled) return;
+  var fn=A[el.dataset.act]; if(fn){ ev.preventDefault(); fn(el.dataset, el); }
+});
+document.addEventListener('input', function(ev){
+  if(ev.target.id==='q'){ S.q=ev.target.value; var l=$('#explist'); if(l) l.innerHTML=expListHtml(); }
+  if(ev.target.name==='amount') updateShare();
+});
+document.addEventListener('keydown', function(ev){
+  if(ev.key!=='Enter' || ev.target.tagName==='TEXTAREA') return;
+  if(ev.target.id==='pin'){ var b=$('[data-act=login]'); if(b) b.click(); }
+  else if(ev.target.closest && ev.target.closest('form')) ev.preventDefault();
+});
+document.addEventListener('submit', function(ev){ ev.preventDefault(); });
+
+/* hooks used by the phone shells */
+window.__onBack = function(){ if(sheetOpen()){ closeSheet(); return true; } if(S.view==='main' && S.tab!=='home'){ A.tab({tab:'home'}); return true; } return false; };
+window.__onResume = function(){ if(S.view==='main') refresh(true); };
+document.addEventListener('visibilitychange', function(){ if(!document.hidden) window.__onResume(); });
+setInterval(function(){ if(!document.hidden && S.view==='main' && !sheetOpen()) refresh(true); }, 90000);
+
+boot();
+})();
+</script>
+</body>
+</html>

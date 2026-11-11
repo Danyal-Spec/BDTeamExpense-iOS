@@ -1,0 +1,30 @@
+# Runs ONLY when started by hand (Actions tab -> "Build iOS (manual)" -> Run workflow).
+# Produces an unsigned .ipa for sideloading tools; nothing is built automatically.
+name: Build iOS (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Build (unsigned)
+        run: |
+          xcodebuild -project BDTeamExpense.xcodeproj -scheme BDTeamExpense -configuration Release \
+            -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload dist
+          cp -R build/Build/Products/Release-iphoneos/BDTeamExpense.app Payload/
+          zip -qry dist/BDTeamExpense-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BDTeamExpense-ios-unsigned
+          path: dist/*.ipa
