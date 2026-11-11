@@ -237,18 +237,21 @@ function setSession(r){
   if(r.token){ S.token=r.token; store.set('token',r.token); }
   if(r.me){ S.me=r.me; store.set('me',JSON.stringify(r.me)); }
 }
-var refreshing=false;
+var refreshing=false, refreshAgain=false;
 function refresh(silent){
-  if(!S.token || refreshing) return Promise.resolve();
+  if(!S.token) return Promise.resolve();
+  if(refreshing){ refreshAgain=true; return Promise.resolve(); }
   refreshing=true; paintSync();
   return flushOutbox().then(function(){ return call('sync'); }).then(function(r){
     refreshing=false; S.offline=false; S.data=r; S.me=r.me; CUR=(r.settings&&r.settings.currency)||CUR;
     store.set('data',JSON.stringify(r)); store.set('me',JSON.stringify(r.me));
     if(r.me.mustChange && S.view==='main'){ S.view='pin'; }
     if(!sheetOpen() || S.view!=='main') render(); else paintSync();
+    if(refreshAgain){ refreshAgain=false; return refresh(true); }
   }, function(e){
+    refreshAgain=false;
     refreshing=false; paintSync();
-    if(e.net){ S.offline=true; if(!silent) toast(S.data?'Offline — showing saved data':e.message, true); }
+    if(e.net){ var was=S.offline; S.offline=true; if(!was && S.view==='main' && S.data && !sheetOpen()) render(); if(!silent) toast(S.data?'Offline — showing saved data':e.message, true); }
     else if(e.code!=='AUTH' && !silent) toast(e.message, true);
   });
 }
@@ -274,29 +277,27 @@ function flushOutbox(){
       saveOutbox(outbox().map(function(x){ if(x.cid===it.cid) x.error=e.message; return x; })); return step(i+1);
     });
   };
-  var done=function(){ flushing=false; if(sent) toast(sent+(sent>1?' saved entries sent':' saved entry sent')); return sent; };
+  var done=function(){
+    flushing=false;
+    var failed=myQueue().filter(function(x){ return x.error; }).length;
+    if(failed) toast('An entry could not be sent. Open '+(isAdmin()?'Approvals':'Requests')+' to see why.', true);
+    else if(sent) toast(sent>1 ? sent+' entries sent' : (isAdmin()?'Added to the sheet':'Sent to '+((S.data&&S.data.admin)||'the admin')+' for approval'));
+    return sent;
+  };
   return step(0).then(done, done);
 }
 function submitNew(btn, type, data){
-  var cid=uid();
-  var queue=function(){
-    var l=outbox(); l.push({cid:cid,type:type,data:data,by:S.me.name,at:Date.now()}); saveOutbox(l);
-    S.offline=true; closeSheet(); render(); toast('No internet — saved on this phone. It will be sent automatically.');
-  };
-  if(navigator.onLine===false && !GAS){ queue(); return; }
-  btn.disabled=true; btn.dataset.txt=btn.textContent; btn.textContent='Please wait…';
-  call(type==='expense'?'submitExpense':'submitTransfer',{data:data,clientId:cid}).then(function(r){
-    closeSheet(); toast(r.status==='approved'?'Added to the sheet':'Sent to '+S.data.admin+' for approval'); refresh(true);
-  }, function(e){
-    if(e.net){ queue(); return; }
-    btn.disabled=false; btn.textContent=btn.dataset.txt; formErr(e.message);
-  });
+  // Never make the person wait: keep the entry on the phone, close the form, send in the background.
+  var l=outbox(); l.push({cid:uid(),type:type,data:data,by:S.me.name,at:Date.now()}); saveOutbox(l);
+  closeSheet(); render();
+  toast(navigator.onLine===false ? 'No internet — saved on this phone. It will be sent automatically.' : 'Saved. Sending in the background…');
+  refresh(true);
 }
 function queueCard(q){
   var d=q.data, title=q.type==='expense'?d.desc:d.from+' → '+d.to;
   return '<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b style="font-size:16px">'+esc(title)+'</b><b class="num" style="font-size:16px">'+money(d.amount)+'</b></div>'+
     '<div class="note">'+(q.type==='expense'?'Expense · paid by '+esc(d.paidBy)+' · split '+d.parts.length:'Payment')+' · '+esc(fdate(d.date))+'</div>'+
-    (q.error?'<div class="err" style="margin-top:8px">Could not be sent: '+esc(q.error)+'</div>':'<div class="warnbox">Saved on this phone. Not sent yet — waiting for internet.</div>')+
+    (q.error?'<div class="err" style="margin-top:8px">Could not be sent: '+esc(q.error)+'</div>':'<div class="warnbox">'+(S.offline?'Saved on this phone. Not sent yet — waiting for internet.':'Saved on this phone. Sending…')+'</div>')+
     '<div class="acts"><button class="btn sm danger" data-act="dropQueued" data-id="'+esc(q.cid)+'">Remove</button><button class="btn sm ghost" data-act="retryQueued" data-id="'+esc(q.cid)+'">Send now</button></div></div>';
 }
 
@@ -368,7 +369,7 @@ function vHome(){
     '<div class="big num">'+money(Math.abs(b.final))+'</div>'+(rate>0?(isAdmin()?'<button class="pill num" data-act="settings" style="color:#fff">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+' · change rate</button>':'<span class="pill num">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+'</span>'):'')+''+
     '<div class="grid"><div><small>You paid</small><b class="num">'+money(b.paid)+'</b></div><div><small>Your share</small><b class="num">'+money(b.owed)+'</b></div><div><small>Group total</small><b class="num">'+money(d.totals.spend)+'</b></div></div></div>';
   var qn=myQueue().length;
-  if(qn) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+qn+(qn>1?' entries':' entry')+' saved on this phone, waiting to be sent</span>'+icon('chev',18)+'</button>';
+  if(qn) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+qn+(qn>1?' entries':' entry')+(S.offline?' saved on this phone, waiting for internet':' being sent…')+'</span>'+icon('chev',18)+'</button>';
   if(isAdmin() && pend.length) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+pend.length+' request'+(pend.length>1?'s':'')+' waiting for your approval</span>'+icon('chev',18)+'</button>';
   if(!isAdmin() && pend.length) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+pend.length+' of your request'+(pend.length>1?'s are':' is')+' waiting for '+esc(d.admin)+'</span>'+icon('chev',18)+'</button>';
   h+='<div class="card"><h3>Everyone</h3>'+d.balances.map(function(x){
