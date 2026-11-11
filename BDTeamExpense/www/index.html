@@ -345,6 +345,8 @@ function bgDelete(kind, row){
 /* ---------- derived data ---------- */
 function myBal(name){ var b=(S.data.balances||[]).filter(function(x){ return x.name===(name||S.me.name); })[0]; return b||{paid:0,owed:0,net:0,given:0,received:0,final:0}; }
 function isAdmin(){ return S.me && S.me.role==='admin'; }
+function isOff(name){ return ((S.data&&S.data.inactive)||[]).indexOf(name)>=0; }
+function activeMembers(){ return S.data.members.filter(function(m){ return !isOff(m); }); }
 function pendingList(){ return (S.data.requests||[]).filter(function(r){ return r.status==='pending'; }); }
 function unseenCount(){
   if(isAdmin()) return pendingList().length;
@@ -408,13 +410,13 @@ function vHome(){
   var d=S.data, b=myBal(), rate=d.settings.pkrRate, pend=pendingList();
   var h='<div class="hero"><div class="lab">'+(b.final>0.5?'You get back':(b.final<-0.5?'You owe':'You are settled'))+'</div>'+
     '<div class="big num">'+money(Math.abs(b.final))+'</div>'+(rate>0?(isAdmin()?'<button class="pill num" data-act="settings" style="color:#fff">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+' · change rate</button>':'<span class="pill num">≈ PKR '+Math.round(Math.abs(b.final)*rate).toLocaleString('en-US')+'</span>'):'')+''+
-    '<div class="grid"><div><small>You paid</small><b class="num">'+money(b.paid)+'</b></div><div><small>Your share</small><b class="num">'+money(b.owed)+'</b></div><div><small>Group total</small><b class="num">'+money(d.totals.spend)+'</b></div></div></div>';
+    '<div class="lab num" style="margin-top:14px">Group total '+money(d.totals.spend)+'</div></div>';
   var qn=myQueue().length;
   if(qn) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+qn+(qn>1?' entries':' entry')+(S.offline?' saved on this phone, waiting for internet':' being sent…')+'</span>'+icon('chev',18)+'</button>';
   if(isAdmin() && pend.length) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+pend.length+' request'+(pend.length>1?'s':'')+' waiting for your approval</span>'+icon('chev',18)+'</button>';
   if(!isAdmin() && pend.length) h+='<button class="banner" data-act="tab" data-tab="requests"><span>'+pend.length+' of your request'+(pend.length>1?'s are':' is')+' waiting for '+esc(d.admin)+'</span>'+icon('chev',18)+'</button>';
-  h+='<div class="card"><h3>Everyone</h3>'+d.balances.map(function(x){
-    return '<button class="li" data-act="statement" data-name="'+esc(x.name)+'">'+av(x.name)+'<div class="mid"><div class="t">'+esc(x.name)+(x.name===S.me.name?' (you)':'')+'</div><div class="s num">paid '+money(x.paid)+' · share '+money(x.owed)+'</div></div><div class="r"><b class="num '+balCls(x.final)+'">'+money(x.final)+'</b><small>'+(x.final>0.5?'gets back':(x.final<-0.5?'owes':'settled'))+'</small></div></button>';
+  h+='<div class="card"><h3>Everyone</h3>'+d.balances.filter(function(x){ return !isOff(x.name) || Math.abs(x.final)>0.5; }).map(function(x){
+    return '<button class="li" data-act="statement" data-name="'+esc(x.name)+'">'+av(x.name)+'<div class="mid"><div class="t">'+esc(x.name)+(x.name===S.me.name?' (you)':'')+'</div>'+(isOff(x.name)?'<div class="s">Disabled</div>':'')+'</div><div class="r"><b class="num '+balCls(x.final)+'">'+money(x.final)+'</b><small>'+(x.final>0.5?'gets back':(x.final<-0.5?'owes':'settled'))+'</small></div></button>';
   }).join('')+'</div>';
   if(d.settle.length) h+='<div class="card"><h3>Simplest way to settle up</h3>'+d.settle.map(function(s){
     var mine=s.from===S.me.name||s.to===S.me.name;
@@ -495,7 +497,7 @@ function vRequests(){
 }
 function vMore(){
   var rows=[['statement','My statement','Every entry that changes your balance'],['stats','Statistics','Monthly spending and who paid'],['changePin','Change PIN','']];
-  if(isAdmin()) rows=rows.concat([['users','Members & PINs','Reset a PIN, switch accounts on or off'],['settings','Settings','BDT to PKR rate, e-mail alerts']]);
+  if(isAdmin()) rows=rows.concat([['users','Members & PINs','Add or disable people, reset a PIN'],['settings','Settings','BDT to PKR rate, e-mail alerts']]);
   rows.push(['about','About','']);
   return '<div class="card" style="display:flex;gap:12px;align-items:center">'+av(S.me.name)+'<div style="flex:1"><b style="font-size:17px">'+esc(S.me.name)+'</b><div class="note">'+(isAdmin()?'Admin — you approve all entries':'Member — '+esc(S.data.admin)+' approves your entries')+'</div></div></div>'+
     '<div class="card" style="padding:4px 14px">'+rows.map(function(r){ return '<button class="li" data-act="'+r[0]+'" data-name="'+esc(S.me.name)+'"><div class="mid"><div class="t">'+r[1]+'</div>'+(r[2]?'<div class="s">'+r[2]+'</div>':'')+'</div><span class="mute">'+icon('chev',18)+'</span></button>'; }).join('')+'</div>'+
@@ -503,9 +505,9 @@ function vMore(){
 }
 
 /* ---------- forms ---------- */
-function memberOptions(sel){ return S.data.members.map(function(m){ return '<option'+(m===sel?' selected':'')+'>'+esc(m)+'</option>'; }).join(''); }
+function memberOptions(sel){ return S.data.members.filter(function(m){ return !isOff(m) || m===sel; }).map(function(m){ return '<option'+(m===sel?' selected':'')+'>'+esc(m)+'</option>'; }).join(''); }
 function expenseForm(init, submitLabel, hidden){
-  var m=S.data.members, parts=init.parts||m;
+  var parts=init.parts||activeMembers(), m=S.data.members.filter(function(x){ return !isOff(x) || parts.indexOf(x)>=0; });
   return '<form id="expForm" autocomplete="off" style="display:flex;flex-direction:column;gap:13px">'+(hidden||'')+
     '<label class="f">What was it for?<input class="in" name="desc" maxlength="80" value="'+esc(init.desc||'')+'" placeholder="e.g. KFC, Mess, Rickshaw"></label>'+
     '<div class="row2"><label class="f">Amount ('+CUR+')<input class="in num" name="amount" type="number" inputmode="decimal" step="any" min="0" value="'+(init.amount||'')+'" placeholder="0"></label>'+
@@ -517,7 +519,7 @@ function expenseForm(init, submitLabel, hidden){
     '<div id="formErr"></div><button type="button" class="btn" data-act="submitExpense">'+esc(submitLabel)+'</button></form>';
 }
 function paymentForm(init, submitLabel, hidden){
-  var others=S.data.members.filter(function(x){ return x!==S.me.name; });
+  var others=activeMembers().filter(function(x){ return x!==S.me.name; });
   return '<form id="payForm" autocomplete="off" style="display:flex;flex-direction:column;gap:13px">'+(hidden||'')+
     '<div class="row2"><label class="f">Given by<select class="in" name="from">'+memberOptions(init.from||S.me.name)+'</select></label>'+
     '<label class="f">Received by<select class="in" name="to">'+memberOptions(init.to||(isAdmin()?others[0]:S.data.admin))+'</select></label></div>'+
@@ -597,9 +599,9 @@ function showStats(){
 function showUsers(){
   openSheet('Members & PINs','<p class="note">Loading…</p>');
   call('users').then(function(r){
-    openSheet('Members & PINs','<p class="note">Resetting gives a new starting PIN. The member must choose their own PIN at next sign-in.</p><div class="card" style="padding:4px 14px">'+r.users.map(function(u){
-      return '<div class="li">'+av(u.name,true)+'<div class="mid"><div class="t">'+esc(u.name)+'</div><div class="s">'+(u.role==='admin'?'Admin':(u.active?'Member':'Switched off'))+(u.mustChange?' · starting PIN not changed yet':'')+'</div></div>'+
-        '<div style="display:flex;gap:6px">'+(u.role==='admin'?'':'<button class="btn sm '+(u.active?'danger':'ghost')+'" data-act="toggleUser" data-name="'+esc(u.name)+'" data-active="'+(u.active?'0':'1')+'">'+(u.active?'Off':'On')+'</button>')+'<button class="btn sm ghost" data-act="resetPin" data-name="'+esc(u.name)+'">Reset PIN</button></div></div>';
+    openSheet('Members & PINs','<button class="btn" data-act="addMember">Add a person</button><p class="note">Disable: the person can no longer sign in, disappears from the sign-in screen and is not offered for new expenses. Their old entries and balance stay. Resetting gives a new starting PIN.</p><div class="card" style="padding:4px 14px">'+r.users.map(function(u){
+      return '<div class="li">'+av(u.name,true)+'<div class="mid"><div class="t">'+esc(u.name)+'</div><div class="s">'+(u.role==='admin'?'Admin':(u.active?'Member':'Disabled'))+(u.mustChange?' · starting PIN not changed yet':'')+'</div></div>'+
+        '<div style="display:flex;gap:6px">'+(u.role==='admin'?'':'<button class="btn sm '+(u.active?'danger':'ghost')+'" data-act="toggleUser" data-name="'+esc(u.name)+'" data-active="'+(u.active?'0':'1')+'">'+(u.active?'Disable':'Enable')+'</button>')+'<button class="btn sm ghost" data-act="resetPin" data-name="'+esc(u.name)+'">Reset PIN</button></div></div>';
     }).join('')+'</div>'+(GAS?'':'<button class="btn ghost" data-act="shareServer">Share server link</button>'));
   }, function(e){ closeSheet(); toast(e.message,true); });
 }
@@ -708,7 +710,18 @@ var A = {
       if(r.name===S.me.name) refresh(true);
     }, function(e){ btn.disabled=false; formErr(e.message); });
   },
-  toggleUser: function(d,btn){ btn.disabled=true; call('setActive',{name:d.name,active:d.active==='1'}).then(showUsers,function(e){ toast(e.message,true); showUsers(); }); },
+  toggleUser: function(d,btn){ btn.disabled=true; call('setActive',{name:d.name,active:d.active==='1'}).then(function(){ showUsers(); refresh(true); },function(e){ toast(e.message,true); showUsers(); }); },
+  addMember: function(){ openSheet('Add a person','<p class="note">The person gets their own column in the sheet (not included in any old expense), a balance of zero and a starting PIN.</p><label class="f">Name<input class="in" id="newName" maxlength="20" autocapitalize="words" placeholder="e.g. Hamza"></label><div id="formErr"></div><div class="acts"><button class="btn ghost" data-act="users">Back</button><button class="btn" data-act="addMemberYes">Add</button></div>'); },
+  addMemberYes: function(d,btn){
+    var name=$('#newName').value.trim().replace(/\s+/g,' ');
+    if(name.length<2){ formErr('Enter the name.'); return; }
+    btn.disabled=true; btn.textContent='Adding…';
+    call('addMember',{name:name}).then(function(r){
+      var msg='BD Team Expense\nName: '+r.name+'\nStarting PIN: '+r.pin;
+      openSheet(r.name+' added','<div class="pinbox num">'+esc(r.pin)+'</div><p class="note">Starting PIN for '+esc(r.name)+'. It is shown only once — send it privately.</p>'+(r.note?'<div class="warnbox">'+esc(r.note)+'</div>':'')+'<button class="btn" data-act="shareText" data-text="'+esc(msg)+'">Send to '+esc(r.name)+'</button><button class="btn ghost" data-act="users">Back to members</button>');
+      refresh(true);
+    }, function(e){ btn.disabled=false; btn.textContent='Add'; formErr(/^Unknown action/.test(e.message)?'The server needs the new Code.gs first: paste it in Apps Script and deploy a new version.':e.message); });
+  },
   shareText: function(d){ nativeShare(d.text); },
   shareServer: function(){ nativeShare('BD Team Expense server link (paste it in the app on first start):\n'+S.api); },
   settings: function(){
