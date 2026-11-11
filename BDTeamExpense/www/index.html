@@ -168,7 +168,7 @@ var icon = function(n,sz){ sz=sz||22; return '<svg width="'+sz+'" height="'+sz+'
 
 /* ---------- state ---------- */
 var S = { view:'boot', api:'', token:'', me:null, data:null, tab:'home', members:[], pick:'', err:'', busy:false,
-          q:'', who:'all', reqSeg:'pending', offline:false };
+          q:'', who:'all', reqSeg:'pending', offline:false, hold:{}, rowHold:{} };
 var GAS = !!(window.google && google.script && google.script.run);
 
 /* ---------- transport ---------- */
@@ -242,8 +242,10 @@ function refresh(silent){
   if(!S.token) return Promise.resolve();
   if(refreshing){ refreshAgain=true; return Promise.resolve(); }
   refreshing=true; paintSync();
+  var my=++syncNo;
   return flushOutbox().then(function(){ return call('sync'); }).then(function(r){
-    refreshing=false; S.offline=false; S.data=r; S.me=r.me; CUR=(r.settings&&r.settings.currency)||CUR;
+    refreshing=false; S.offline=false; S.data=r; S.me=r.me; applyHolds();
+    if(staleAfter!==null && my>staleAfter) staleAfter=null; CUR=(r.settings&&r.settings.currency)||CUR;
     store.set('data',JSON.stringify(r)); store.set('me',JSON.stringify(r.me));
     if(r.me.mustChange && S.view==='main'){ S.view='pin'; }
     if(!sheetOpen() || S.view!=='main') render(); else paintSync();
@@ -299,6 +301,45 @@ function queueCard(q){
     '<div class="note">'+(q.type==='expense'?'Expense · paid by '+esc(d.paidBy)+' · split '+d.parts.length:'Payment')+' · '+esc(fdate(d.date))+'</div>'+
     (q.error?'<div class="err" style="margin-top:8px">Could not be sent: '+esc(q.error)+'</div>':'<div class="warnbox">'+(S.offline?'Saved on this phone. Not sent yet — waiting for internet.':'Saved on this phone. Sending…')+'</div>')+
     '<div class="acts"><button class="btn sm danger" data-act="dropQueued" data-id="'+esc(q.cid)+'">Remove</button><button class="btn sm ghost" data-act="retryQueued" data-id="'+esc(q.cid)+'">Send now</button></div></div>';
+}
+
+/* ---------- background actions: the screen updates at once, the server call runs behind it ---------- */
+var deletesInFlight=0, staleAfter=null, syncNo=0;
+function rowsBusy(){ return deletesInFlight>0 || staleAfter!==null; }
+var BUSY_MSG='Still saving the last change. Try again in a moment.';
+function applyHolds(){ if(S.data) (S.data.requests||[]).forEach(function(r){ if(S.hold[r.id]) r.status=S.hold[r.id]; }); }
+function findReq(id){ return ((S.data&&S.data.requests)||[]).filter(function(x){ return x.id===id; })[0]; }
+function bgFail(e){
+  if(S.view==='main' && !sheetOpen()) render();
+  toast(e.net?'No internet — that change was not saved. Try again when you are online.':e.message, true);
+  if(!e.net && e.code!=='AUTH') refresh(true);
+}
+function bgDecide(id, status, payload, msg){
+  var r=findReq(id); if(!r) return;
+  S.hold[id]=status; r.status=status; closeSheet(); render(); toast(msg);
+  var act = status==='cancelled' ? call('cancelRequest',{id:id}) : call('decide',Object.assign({id:id,approve:status==='approved'},payload||{}));
+  act.then(function(){ delete S.hold[id]; refresh(true); },
+    function(e){ delete S.hold[id]; var cur=findReq(id); if(cur) cur.status='pending'; bgFail(e); });
+}
+function bgEdit(kind, ctx, data){
+  if(rowsBusy()){ formErr(BUSY_MSG); return; }
+  var list=kind==='expense'?S.data.expenses:S.data.transfers;
+  var e=list.filter(function(x){ return x.row===ctx.row; })[0], copy=e?JSON.stringify(e):null;
+  if(e){ Object.assign(e,data); e.label=''; if(kind==='expense') e.per=data.parts.length?Math.round(data.amount/data.parts.length):0; }
+  closeSheet(); render(); toast('Saved');
+  call('editEntry',{kind:kind,row:ctx.row,expect:ctx.expect,data:data}).then(function(){ refresh(true); },
+    function(err){ if(e&&copy) Object.assign(e,JSON.parse(copy)); bgFail(err); });
+}
+function bgDelete(kind, row){
+  if(rowsBusy()){ toast(BUSY_MSG,true); return; }
+  var e=(kind==='expense'?S.data.expenses:S.data.transfers).filter(function(x){ return x.row===row; })[0]; if(!e) return;
+  var key=kind+':'+row;
+  S.rowHold[key]=1; deletesInFlight++; closeSheet(); render(); toast('Deleted');
+  call('deleteEntry',{kind:kind,row:row,expect:{text:kind==='expense'?e.desc:e.from,amount:e.amount}}).then(function(){
+    deletesInFlight--; staleAfter=syncNo;
+    if(kind==='expense') S.data.expenses=S.data.expenses.filter(function(x){ return x!==e; }); else S.data.transfers=S.data.transfers.filter(function(x){ return x!==e; });
+    delete S.rowHold[key]; refresh(true);
+  }, function(err){ deletesInFlight--; delete S.rowHold[key]; bgFail(err); });
 }
 
 /* ---------- derived data ---------- */
@@ -390,6 +431,7 @@ function vHome(){
 function expFiltered(){
   var q=S.q.trim().toLowerCase(), me=S.me.name;
   return S.data.expenses.filter(function(e){
+    if(S.rowHold['expense:'+e.row]) return false;
     if(S.who==='mine' && e.parts.indexOf(me)<0) return false;
     if(S.who==='paid' && e.paidBy!==me) return false;
     if(q && (e.desc+' '+e.paidBy+' '+e.notes+' '+e.amount).toLowerCase().indexOf(q)<0) return false;
@@ -416,7 +458,7 @@ function vExpenses(){
     '<div id="explist">'+expListHtml()+'</div>';
 }
 function vPayments(){
-  var me=S.me.name, list=S.data.transfers.slice().reverse();
+  var me=S.me.name, list=S.data.transfers.filter(function(t){ return !S.rowHold['transfer:'+t.row]; }).reverse();
   if(S.who==='mine') list=list.filter(function(t){ return t.from===me||t.to===me; });
   var h='<div class="seg">'+[['all','All'],['mine','Mine']].map(function(x){ return '<button class="'+((S.who==='mine'?'mine':'all')===x[0]?'on':'')+'" data-act="who" data-who="'+x[0]+'">'+x[1]+'</button>'; }).join('')+'</div>';
   if(!list.length) return h+'<div class="empty">No payments yet.</div>';
@@ -609,42 +651,42 @@ var A = {
   submitExpense: function(d,btn){
     var f=$('#expForm'), data=readExpenseForm(), mode=modeOf(f), ctx=ctxOf(f), bad=validate(data,'expense');
     if(bad){ formErr(bad); return; }
-    if(mode==='edit') run(btn, call('editEntry',{kind:'expense',row:ctx.row,expect:ctx.expect,data:data}), 'Saved');
-    else if(mode==='review') run(btn, call('decide',{id:ctx.id,approve:true,data:data}), 'Approved and added to the sheet');
+    if(mode==='edit') bgEdit('expense',ctx,data);
+    else if(mode==='review') bgDecide(ctx.id,'approved',{data:data},'Approved');
     else submitNew(btn,'expense',data);
   },
   submitPayment: function(d,btn){
     var f=$('#payForm'), data=readPaymentForm(), mode=modeOf(f), ctx=ctxOf(f), bad=validate(data,'transfer');
     if(bad){ formErr(bad); return; }
-    if(mode==='edit') run(btn, call('editEntry',{kind:'transfer',row:ctx.row,expect:ctx.expect,data:data}), 'Saved');
-    else if(mode==='review') run(btn, call('decide',{id:ctx.id,approve:true,data:data}), 'Approved and added to the sheet');
+    if(mode==='edit') bgEdit('transfer',ctx,data);
+    else if(mode==='review') bgDecide(ctx.id,'approved',{data:data},'Approved');
     else submitNew(btn,'transfer',data);
   },
   expense: function(d){ showExpense(Number(d.row)); },
   payment: function(d){ showPayment(Number(d.row)); },
-  editExpense: function(d){ var e=S.data.expenses.filter(function(x){ return x.row===Number(d.row); })[0]; openSheet('Edit expense', expenseForm(e,'Save changes',hiddenCtx('edit',{row:e.row,expect:{text:e.desc,amount:e.amount}}))); updateShare(); },
-  editPayment: function(d){ var t=S.data.transfers.filter(function(x){ return x.row===Number(d.row); })[0]; openSheet('Edit payment', paymentForm(t,'Save changes',hiddenCtx('edit',{row:t.row,expect:{text:t.from,amount:t.amount}}))); },
-  delEntry: function(d){ confirmSheet('Delete this entry?','It will be removed from the sheet for everyone. This cannot be undone from the app.','Delete','delEntryYes',{kind:d.kind,row:d.row},true); },
-  delEntryYes: function(d,btn){
-    var row=Number(d.row), e=(d.kind==='expense'?S.data.expenses:S.data.transfers).filter(function(x){ return x.row===row; })[0];
-    run(btn, call('deleteEntry',{kind:d.kind,row:row,expect:{text:d.kind==='expense'?e.desc:e.from,amount:e.amount}}), 'Deleted');
-  },
-  approve: function(d,btn){ run(btn, call('decide',{id:d.id,approve:true}), 'Approved and added to the sheet'); },
-  approveAll: function(d,btn){
-    var ids=pendingList().map(function(r){ return r.id; }).reverse(), done=0;
-    btn.disabled=true;
-    var next=function(){ if(!ids.length) return Promise.resolve(); btn.textContent='Approving '+(done+1)+'…'; return call('decide',{id:ids.shift(),approve:true}).then(function(){ done++; return next(); }); };
-    next().then(function(){ toast('Approved '+done); refresh(true); }, function(e){ toast(e.message,true); refresh(true); });
+  editExpense: function(d){ if(rowsBusy()){ toast(BUSY_MSG,true); return; } var e=S.data.expenses.filter(function(x){ return x.row===Number(d.row); })[0]; openSheet('Edit expense', expenseForm(e,'Save changes',hiddenCtx('edit',{row:e.row,expect:{text:e.desc,amount:e.amount}}))); updateShare(); },
+  editPayment: function(d){ if(rowsBusy()){ toast(BUSY_MSG,true); return; } var t=S.data.transfers.filter(function(x){ return x.row===Number(d.row); })[0]; openSheet('Edit payment', paymentForm(t,'Save changes',hiddenCtx('edit',{row:t.row,expect:{text:t.from,amount:t.amount}}))); },
+  delEntry: function(d){ if(rowsBusy()){ toast(BUSY_MSG,true); return; } confirmSheet('Delete this entry?','It will be removed from the sheet for everyone. This cannot be undone from the app.','Delete','delEntryYes',{kind:d.kind,row:d.row},true); },
+  delEntryYes: function(d){ bgDelete(d.kind, Number(d.row)); },
+  approve: function(d){ bgDecide(d.id,'approved',null,'Approved'); },
+  approveAll: function(){
+    var ids=pendingList().map(function(r){ return r.id; }).reverse(), total=ids.length, cur=null;
+    ids.forEach(function(id){ S.hold[id]='approved'; }); applyHolds(); render(); toast('Approving '+total+'…');
+    var next=function(){ if(!ids.length) return Promise.resolve(); cur=ids.shift(); return call('decide',{id:cur,approve:true}).then(function(){ delete S.hold[cur]; cur=null; return next(); }); };
+    next().then(function(){ toast('Approved '+total); refresh(true); }, function(e){
+      (cur?[cur]:[]).concat(ids).forEach(function(id){ delete S.hold[id]; var r=findReq(id); if(r) r.status='pending'; });
+      bgFail(e); if(e.net) refresh(true);
+    });
   },
   reject: function(d){ confirmSheet('Reject this request?','It will not be added to the sheet.','Reject','rejectYes',{id:d.id},true,true); },
-  rejectYes: function(d,btn){ run(btn, call('decide',{id:d.id,approve:false,note:$('#note').value.trim()}), 'Rejected'); },
+  rejectYes: function(d){ bgDecide(d.id,'rejected',{note:$('#note').value.trim()},'Rejected'); },
   review: function(d){
     var r=S.data.requests.filter(function(x){ return x.id===d.id; })[0]; if(!r) return;
     if(r.type==='expense'){ openSheet('Edit, then approve', expenseForm({desc:r.desc,amount:r.amount,date:r.date,paidBy:r.from,parts:r.parts,notes:r.notes},'Approve with these details',hiddenCtx('review',{id:r.id}))); updateShare(); }
     else openSheet('Edit, then approve', paymentForm({from:r.from,to:r.to,amount:r.amount,date:r.date,notes:r.notes},'Approve with these details',hiddenCtx('review',{id:r.id})));
   },
   cancelReq: function(d){ confirmSheet('Cancel this request?','It will be withdrawn before '+S.data.admin+' decides.','Cancel request','cancelReqYes',{id:d.id},true); },
-  cancelReqYes: function(d,btn){ run(btn, call('cancelRequest',{id:d.id}), 'Request cancelled'); },
+  cancelReqYes: function(d){ bgDecide(d.id,'cancelled',null,'Request cancelled'); },
   dropQueued: function(d){ saveOutbox(outbox().filter(function(x){ return x.cid!==d.id; })); render(); toast('Removed'); },
   retryQueued: function(d,btn){ btn.disabled=true; saveOutbox(outbox().map(function(x){ if(x.cid===d.id) delete x.error; return x; })); refresh(); },
   statement: function(d){ showStatement(d.name||S.me.name); },
