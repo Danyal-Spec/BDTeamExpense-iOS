@@ -414,9 +414,8 @@ function vMore(){
 function memberOptions(sel){ return S.data.members.map(function(m){ return '<option'+(m===sel?' selected':'')+'>'+esc(m)+'</option>'; }).join(''); }
 function expenseForm(init, submitLabel, hidden){
   var m=S.data.members, parts=init.parts||m;
-  var seen={}, sug=[]; S.data.expenses.slice().reverse().forEach(function(e){ var k=e.desc.trim().toLowerCase(); if(!seen[k]&&sug.length<25){ seen[k]=1; sug.push(e.desc.trim()); } });
   return '<form id="expForm" autocomplete="off" style="display:flex;flex-direction:column;gap:13px">'+(hidden||'')+
-    '<label class="f">What was it for?<input class="in" name="desc" maxlength="80" list="sug" value="'+esc(init.desc||'')+'" placeholder="e.g. KFC, Mess, Rickshaw"><datalist id="sug">'+sug.map(function(s){ return '<option value="'+esc(s)+'">'; }).join('')+'</datalist></label>'+
+    '<label class="f">What was it for?<input class="in" name="desc" maxlength="80" value="'+esc(init.desc||'')+'" placeholder="e.g. KFC, Mess, Rickshaw"></label>'+
     '<div class="row2"><label class="f">Amount ('+CUR+')<input class="in num" name="amount" type="number" inputmode="decimal" step="any" min="0" value="'+(init.amount||'')+'" placeholder="0"></label>'+
     '<label class="f">Date<input class="in" name="date" type="date" value="'+esc(init.date||today())+'"></label></div>'+
     '<label class="f">Paid by<select class="in" name="paidBy">'+memberOptions(init.paidBy||S.me.name)+'</select></label>'+
